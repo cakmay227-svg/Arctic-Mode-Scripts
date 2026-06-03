@@ -1,0 +1,97 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SoundService = game:GetService("SoundService")
+local Players = game:GetService("Players")
+
+
+local LocalPlayer = Players.LocalPlayer
+local GameData = ReplicatedStorage:WaitForChild("GameData")
+
+
+function GitAud(soundlink, filename)
+    if not isfile(filename..".mp3") then
+        writefile(filename..".mp3", game:HttpGet(soundlink))
+    end
+    return (getcustomasset or getsynasset)(filename..".mp3")
+end
+
+
+function CreateCustomSound(soundlink, filename, vol, looped)
+    local Sound = Instance.new("Sound")
+    Sound.SoundId = GitAud(soundlink, filename)
+    Sound.Parent = SoundService
+    Sound.Volume = math.clamp(vol, 0, 2)
+    Sound.Looped = looped
+    Sound.Name = filename
+    return Sound
+end
+
+
+local startPlayed = false
+local rushTriggered = false
+local startSoundFinished = false
+
+
+local startSound = nil
+local endSound = nil
+
+
+pcall(function()
+    startSound = CreateCustomSound("https://github.com/vuivuiviu2/Frost-Mode/raw/refs/heads/main/Theme%20start.mp3", "theme_start", 1.5, false)
+    endSound = CreateCustomSound("https://github.com/vuivuiviu2/Frost-Mode/raw/refs/heads/main/Theme%20endd.mp3", "theme_end", 1.5, false)
+end)
+
+
+if startSound then
+    startSound.Ended:Connect(function()
+        startSoundFinished = true
+        if startSound then startSound:Destroy() startSound = nil end
+    end)
+end
+
+
+GameData.LatestRoom:GetPropertyChangedSignal("Value"):Connect(function()
+    if not startPlayed and GameData.LatestRoom.Value >= 1 then
+        startPlayed = true
+        if startSound then
+            startSound:Play()
+        end
+    end
+end)
+
+
+workspace.ChildAdded:Connect(function(child)
+    if child.Name == "RushMoving" and not rushTriggered then
+        rushTriggered = true
+
+
+        if not startSoundFinished then
+            if startSound then
+                startSound:Stop()
+                startSound:Destroy()
+                startSound = nil
+            end
+            
+            if endSound then
+                endSound:Play()
+            end
+        else
+            if endSound then
+                endSound:Destroy()
+                endSound = nil
+            end
+        end
+    end
+end)
+
+
+local function hookCharacter(char)
+    local hum = char:WaitForChild("Humanoid")
+    hum.Died:Connect(function()
+        if startSound then startSound:Stop() startSound:Destroy() startSound = nil end
+        if endSound then endSound:Stop() endSound:Destroy() endSound = nil end
+    end)
+end
+
+
+if LocalPlayer.Character then hookCharacter(LocalPlayer.Character) end
+LocalPlayer.CharacterAdded:Connect(hookCharacter)
