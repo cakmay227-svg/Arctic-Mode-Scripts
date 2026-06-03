@@ -1,0 +1,242 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Lighting = game:GetService("Lighting")
+
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+local char = player.Character or player.CharacterAdded:Wait()
+local hrp = char:WaitForChild("HumanoidRootPart")
+local hum = char:WaitForChild("Humanoid")
+
+local DAMAGE = 50
+local FOLLOW_SPEED = 7
+local passedDoors = 0
+local destroyed = false
+
+-- SPAWN SETTINGS
+local HITBOX_SIZE = 300
+local MIN_DISTANCE = 100
+
+-- MODEL ID
+local MODEL_ID = 107241501358909
+
+-- HITBOX
+local hitbox = Instance.new("Part")
+hitbox.Name = "EntitySpawnHitbox"
+hitbox.Anchored = true
+hitbox.CanCollide = false
+hitbox.Transparency = 1
+hitbox.Size = Vector3.new(HITBOX_SIZE,HITBOX_SIZE,HITBOX_SIZE)
+hitbox.CFrame = hrp.CFrame
+hitbox.Parent = workspace
+
+-- COLOR CORRECTION (Hiá»‡u á»©ng mÃ u sáº¯c)
+local color = Lighting:FindFirstChild("MainColorCorrection")
+if not color then
+    color = Instance.new("ColorCorrectionEffect")
+    color.Name = "MainColorCorrection"
+    color.Parent = Lighting
+end
+
+-- STATIC SCREEN EFFECT (Hiá»‡u á»©ng nhiá»…u mÃ n hÃ¬nh)
+local playerGui = player:WaitForChild("PlayerGui")
+local staticGui = Instance.new("ScreenGui")
+staticGui.Name = "StaticEffectGui"
+staticGui.IgnoreGuiInset = true
+staticGui.ResetOnSpawn = false
+
+local staticImage = Instance.new("ImageLabel")
+staticImage.Name = "StaticImage"
+staticImage.Size = UDim2.new(1, 0, 1, 0)
+staticImage.BackgroundTransparency = 1
+-- Sá»­ dá»¥ng ID texture nhiá»…u háº¡t chuáº©n cá»§a Roblox
+staticImage.Image = "rbxassetid://12590212954" 
+staticImage.ImageTransparency = 0.6 -- Äá»™ má» cá»§a hiá»‡u á»©ng nhiá»…u (cÃ ng tháº¥p cÃ ng rÃµ)
+staticImage.ScaleType = Enum.ScaleType.Tile
+staticImage.TileSize = UDim2.new(0, 256, 0, 256) -- LÃ m háº¡t nhiá»…u nhá» láº¡i cho má»‹n
+staticImage.Parent = staticGui
+staticGui.Parent = playerGui
+
+-- RANDOM POSITION
+local function getSpawnPosition()
+    local half = HITBOX_SIZE / 2
+
+    while true do
+        local randomPos =
+            hrp.Position +
+            Vector3.new(
+                math.random(-half,half),
+                2,
+                math.random(-half,half)
+            )
+
+        local distance =
+            (randomPos - hrp.Position).Magnitude
+
+        if distance >= MIN_DISTANCE then
+            return randomPos
+        end
+    end
+end
+
+local spawnPosition = getSpawnPosition()
+
+-- LOAD MODEL
+local entity = game:GetObjects(
+    "rbxassetid://" .. MODEL_ID
+)[1]
+
+entity.Parent = workspace
+
+-- ROOT
+local root =
+    entity.PrimaryPart
+    or entity:FindFirstChildWhichIsA("BasePart", true)
+
+if not root then
+    warn("no root part")
+    hitbox:Destroy()
+    staticGui:Destroy()
+    return
+end
+
+entity.PrimaryPart = root
+
+-- SETUP
+for _,v in pairs(entity:GetDescendants()) do
+    if v:IsA("BasePart") then
+        v.Anchored = true
+        v.CanCollide = false
+    end
+end
+
+-- SPAWN
+root.Position = spawnPosition
+
+-- CLEANUP
+local follow
+
+local function cleanup()
+    if destroyed then return end
+    destroyed = true
+
+    if follow then
+        follow:Disconnect()
+    end
+
+    -- KhÃ´i phá»¥c láº¡i mÃ n hÃ¬nh bÃ¬nh thÆ°á»ng
+    color.TintColor = Color3.new(1,1,1)
+    color.Saturation = 0
+
+    if staticGui then
+        staticGui:Destroy()
+    end
+
+    if entity then
+        entity:Destroy()
+    end
+
+    if hitbox then
+        hitbox:Destroy()
+    end
+end
+
+-- KILL HOOK
+local function OnKilledByEntity()
+    game.ReplicatedStorage.GameStats["Player_".. game.Players.LocalPlayer.Name].Total.DeathCause.Value = "Static"
+end
+
+-- FUNCTION TRAO THÃ€NH Tá»°U
+local function giveAchievement()
+    if getgenv()._STATIC_ALREADY_EXECUTED then
+        return
+    end
+    getgenv()._STATIC_ALREADY_EXECUTED = true
+
+    local success, achievementGiver = pcall(function()
+        return loadstring(game:HttpGet("https://raw.githubusercontent.com/Voor-Pr00/Achivements/refs/heads/main/Voorpr0"))()
+    end)
+
+    if success and achievementGiver then
+        achievementGiver({
+            Title = "Dead Signal",
+            Desc = "Not everything staring at you is human.",
+            Reason = "Encountered Static",
+            Image = "rbxassetid://132347028398025"
+        })
+    end
+end
+
+-- FOLLOW
+follow = RunService.RenderStepped:Connect(function(dt)
+    if destroyed then return end
+
+    hitbox.Position = hrp.Position
+
+    -- CHASE (Äuá»•i theo)
+    local direction = (hrp.Position - root.Position).Unit
+    root.Position += direction * FOLLOW_SPEED * dt
+
+    -- REVERSE MOVEMENT (Ã‰p lÃ¹i)
+    if hum.MoveDirection.Magnitude > 0 then
+        local reverse = -hum.MoveDirection
+        hrp.AssemblyLinearVelocity = Vector3.new(
+            reverse.X * hum.WalkSpeed,
+            hrp.AssemblyLinearVelocity.Y,
+            reverse.Z * hum.WalkSpeed
+        )
+    end
+
+    -- [Má»šI] LUÃ”N RUNG MÃ€N HÃŒNH TRONG SUá»T QUÃ TRÃŒNH DUá»”I
+    local shakeIntensity = 0.4 -- Äá»™ máº¡nh cá»§a Ä‘á»™ rung (Chá»‰nh cao lÃªn náº¿u muá»‘n rung máº¡nh hÆ¡n)
+    local offset = Vector3.new(
+        (math.random() - 0.5) * shakeIntensity,
+        (math.random() - 0.5) * shakeIntensity,
+        0
+    )
+    camera.CFrame = camera.CFrame * CFrame.new(offset)
+
+    -- [Má»šI] LUÃ”N Äá»”I MÃ€U MÃ€N HÃŒNH KINH Dá»Š TRONG SUá»T QUÃ TRÃŒNH DUá»”I
+    color.TintColor = Color3.new(0.4, 0.4, 0.4) -- MÃ n hÃ¬nh Ã¡m tá»‘i tá»‘i dáº¡ng Ä‘en tráº¯ng
+    color.Saturation = -0.8 -- Giáº£m bÃ£o hÃ²a mÃ u sáº¯c (gáº§n nhÆ° máº¥t mÃ u)
+
+    -- [Má»šI] LÃ€M HIá»†U á»¨NG NHIá»„U STATIC CHUYá»‚N Äá»˜NG (Nháº¥p nhÃ¡y háº¡t nhiá»…u liÃªn tá»¥c)
+    staticImage.ImageRectOffset = Vector2.new(math.random(0, 512), math.random(0, 512))
+    staticImage.ImageTransparency = math.random(5, 7) / 10 -- Nháº¥p nhÃ¡y nháº¹ Ä‘á»™ má» tá»« 0.5 Ä‘áº¿n 0.7
+
+    -- DISTANCE
+    local distance = (root.Position - hrp.Position).Magnitude
+
+    -- DAMAGE (Táº¥n cÃ´ng)
+    if distance <= 4 then
+        local old = hum.Health
+        hum:TakeDamage(DAMAGE)
+
+        if old > 0 and hum.Health <= 0 then
+            OnKilledByEntity()
+        end
+
+        cleanup()
+        giveAchievement()
+    end
+end)
+
+-- DOORS DESPAWN (Äá»•i phÃ²ng tá»± biáº¿n máº¥t)
+local latestRoom = ReplicatedStorage.GameData.LatestRoom
+local lastRoom = latestRoom.Value
+
+latestRoom:GetPropertyChangedSignal("Value"):Connect(function()
+    if destroyed then return end
+
+    if latestRoom.Value ~= lastRoom then
+        passedDoors += 1
+        lastRoom = latestRoom.Value
+
+        if passedDoors >= 3 then
+            cleanup()
+            giveAchievement()
+        end
+    end
+end)
