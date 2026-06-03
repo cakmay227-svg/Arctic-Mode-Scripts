@@ -1,0 +1,46 @@
+game.Players.LocalPlayer.PlayerGui.MainUI.Jumpscare.Jumpscare_Rush.ImageLabel.Image = "rbxassetid://115415255329114"
+game.Players.LocalPlayer.PlayerGui.MainUI.Jumpscare.Jumpscare_Rush.ImageLabelBig.Image = "rbxassetid://115415255329114"
+
+local workspace = game:GetService("Workspace")
+
+local running = true -- tráº¡ng thÃ¡i loop chÃ­nh
+
+local function OnRushSpawned(model)
+game.Workspace.RushMoving.RushNew.Attachment.ParticleEmitter.Texture = "rbxassetid://115415255329114"
+workspace.RushMoving.RushNew.Attachment.PointLight.Color = Color3.fromRGB(0, 136, 255)
+workspace.RushMoving.RushNew.Playsound.PlaybackSpeed = 0.78
+workspace.RushMoving.RushNew.Footsteps.PlaybackSpeed = 0.78
+workspace.RushMoving.RushNew.Attachment.PointLight.Brightness = 3
+workspace.RushMoving.RushNew.Attachment.PointLight.Range = 10
+workspace.RushMoving.RushNew.Attachment.PointLight.Enabled = true
+workspace.RushMoving.RushNew.Attachment.BlackTrail.Color = ColorSequence.new(Color3.fromRGB(0, 22, 41))
+game.ReplicatedStorage.GameStats["Player_".. game.Players.LocalPlayer.Name].Total.DeathCause.Value = "Frost Rush"
+print("Rush detected:", model.Name)
+end
+
+while true do
+if running then
+local rush = workspace:FindFirstChild("RushMoving")
+
+if rush and rush:IsA("Model") then  
+        running = false -- dá»«ng loop chÃ­nh  
+
+        -- cháº¡y script cá»§a m  
+        task.spawn(function()  
+            OnRushSpawned(rush)  
+        end)  
+
+        -- Ä‘á»£i Ä‘áº¿n khi Rush biáº¿n máº¥t  
+        repeat  
+            task.wait(0.1)  
+            rush = workspace:FindFirstChild("RushMoving")  
+        until not rush  
+
+        running = true  
+        print("Rush gone, loop resumed")  
+    end  
+end  
+
+task.wait(0.1) -- chá»‘ng lag
+
+end
