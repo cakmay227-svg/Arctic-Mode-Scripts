@@ -92,7 +92,7 @@ screenGui.Parent = playerGui
 local mainContainer = Instance.new("Frame")
 mainContainer.Name = "FrostlyContainer"
 mainContainer.AnchorPoint = Vector2.new(1, 1)
-mainContainer.Position = UDim2.new(1, -30, 1, -30) 
+mainContainer.Position = UDim2.new(1, -30, 1, -8)
 mainContainer.Size = UDim2.new(0, 300, 0, 36) 
 mainContainer.BackgroundTransparency = 1
 mainContainer.Parent = screenGui
@@ -1587,7 +1587,7 @@ holderLayout.Parent = holder
 
 -- Sound tick
 local baseSound = Instance.new("Sound")
-baseSound.SoundId = "rbxassetid://138433083253737"
+baseSound.SoundId = "rbxassetid://0"
 baseSound.Volume = 0.7
 baseSound.Parent = SoundService
 
@@ -1857,7 +1857,7 @@ holderLayout.Parent = holder
 
 -- Sound tick
 local baseSound = Instance.new("Sound")
-baseSound.SoundId = "rbxassetid://138433083253737"
+baseSound.SoundId = "rbxassetid://0"
 baseSound.Volume = 0.7
 baseSound.Parent = SoundService
 
@@ -2118,7 +2118,7 @@ holderLayout.Parent = holder
 
 -- Sound tick
 local baseSound = Instance.new("Sound")
-baseSound.SoundId = "rbxassetid://138433083253737"
+baseSound.SoundId = "rbxassetid://0"
 baseSound.Volume = 0.7
 baseSound.Parent = SoundService
 
@@ -2286,7 +2286,7 @@ local Debris = game:GetService("Debris")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
-local TEXT = "Uh oh, the fire ran out."
+local TEXT = "Uh oh, the fire has run out."
 
 -- GUI
 local gui = Instance.new("ScreenGui")
@@ -2315,7 +2315,7 @@ holderLayout.Parent = holder
 
 -- Sound tick
 local baseSound = Instance.new("Sound")
-baseSound.SoundId = "rbxassetid://138433083253737"
+baseSound.SoundId = "rbxassetid://0"
 baseSound.Volume = 0.7
 baseSound.Parent = SoundService
 
@@ -2517,8 +2517,8 @@ local function processRoom(room)
 	if hasKey then
 		shouldSpawn = true
 	else
-		-- phòng thường = 50%
-		shouldSpawn = math.random(1, 100) <= 50
+		-- phòng thường = 5%
+		shouldSpawn = math.random(1, 100) <= 5
 	end
 
 	if not shouldSpawn then
@@ -2651,7 +2651,7 @@ holderLayout.Parent = holder
 
 -- Sound tick
 local baseSound = Instance.new("Sound")
-baseSound.SoundId = "rbxassetid://138433083253737"
+baseSound.SoundId = "rbxassetid://0"
 baseSound.Volume = 0.7
 baseSound.Parent = SoundService
 
@@ -2818,18 +2818,18 @@ local player = Players.LocalPlayer
 
 local CEILING_MODEL_ID = "rbxassetid://98844994601455"
 local HEIGHT_OFFSET = 3.5
-local SLOWED_SPEED = 8
+local SLOWED_SPEED = 10
 
 
 local TORNADO_MODEL_ID = "rbxassetid://105600655846697"
 local MOVE_SPEED = 10
 local ROTATE_SPEED = 720
-local DAMAGE = 7
+local DAMAGE = 3
 local DAMAGE_COOLDOWN = 0.5
 local CHANGE_DIRECTION_TIME = 2
 local SHAKE_RADIUS = 60
 local MAX_SHAKE_STRENGTH = 0.6
-local KNOCKBACK_FORCE = 7
+local KNOCKBACK_FORCE = 0
 local ICE_BLUE_COLOR = Color3.fromRGB(135, 206, 250)
 
 
@@ -2963,35 +2963,123 @@ local function spawnCeilingModel(room, floor, attachSound)
 	model:PivotTo(CFrame.new(targetPos))
 end
 
+local orbiting = false
+local orbitStart = 0
+local orbitConnection = nil
+local damageLoop = nil
+local ORBIT_RADIUS = 8
+local ORBIT_DURATION = 2
+local ORBIT_HEIGHT_OFFSET = 0
+local RELEASE_FORCE = 120
+local DAMAGE_PER_TICK = 0.5
+local DAMAGE_INTERVAL = 0.4
+local DETECT_RADIUS = 14
 
-local function checkTornadoDamage(body)
+local function stopOrbit()
+	orbiting = false
+
+	if orbitConnection then
+		orbitConnection:Disconnect()
+		orbitConnection = nil
+	end
+
+	if damageLoop then
+		task.cancel(damageLoop)
+		damageLoop = nil
+	end
+end
+
+local function startOrbit(body)
+	if orbiting then return end
+
 	local char = player.Character
 	if not char then return end
+
 	local humanoid = char:FindFirstChildOfClass("Humanoid")
 	local hrp = char:FindFirstChild("HumanoidRootPart")
-	if not humanoid or humanoid.Health <= 0 or not hrp then return end
 
+	if not humanoid or not hrp then return end
 
-	local distance = (hrp.Position - body.Position).Magnitude
-	local hitRadius = (body.Size.X / 2) + 2.5 
+	orbiting = true
+	orbitStart = tick()
 
+	-- stun movement
+	humanoid.PlatformStand = true
 
-	if distance <= hitRadius then
-		if tick() - lastDamageTime >= DAMAGE_COOLDOWN then
-			lastDamageTime = tick()
-			
-			humanoid.Health = math.max(0, humanoid.Health - DAMAGE)
-
+	-- damage loop
+	damageLoop = task.spawn(function()
+		while orbiting and humanoid.Health > 0 do
+			humanoid.Health = math.max(0, humanoid.Health - DAMAGE_PER_TICK)
 
 			if humanoid.Health <= 0 and not killed then
 				killed = true
 				OnEntityKill()
 			end
 
-
-			local dir = (hrp.Position - body.Position).Unit
-			hrp.CFrame += Vector3.new(dir.X, 0, dir.Z) * KNOCKBACK_FORCE
+			task.wait(DAMAGE_INTERVAL)
 		end
+	end)
+
+	orbitConnection = RunService.RenderStepped:Connect(function()
+		if not orbiting then return end
+		if not body or not body.Parent then
+			stopOrbit()
+			return
+		end
+
+		local elapsed = tick() - orbitStart
+
+		local centerPos = body.Position + Vector3.new(0, body.Size.Y/2 + ORBIT_HEIGHT_OFFSET, 0)
+
+		-- 180 độ / giây
+		local angle = math.rad(elapsed * 180)
+
+		local x = math.cos(angle) * ORBIT_RADIUS
+		local z = math.sin(angle) * ORBIT_RADIUS
+
+		local orbitPos = centerPos + Vector3.new(x, 0, z)
+
+		hrp.CFrame = CFrame.new(
+			orbitPos,
+			centerPos
+		)
+
+		hrp.AssemblyLinearVelocity = Vector3.zero
+		hrp.AssemblyAngularVelocity = Vector3.zero
+
+		-- hết thời gian thì văng ra
+		if elapsed >= ORBIT_DURATION then
+			stopOrbit()
+
+			humanoid.PlatformStand = false
+
+			local flingDir = (hrp.Position - centerPos).Unit + Vector3.new(0, 0.45, 0)
+
+			hrp.AssemblyLinearVelocity =
+				flingDir.Unit * RELEASE_FORCE
+		end
+	end)
+end
+
+local function checkTornadoDamage(body)
+	local char = player.Character
+	if not char then return end
+
+	local humanoid = char:FindFirstChildOfClass("Humanoid")
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+
+	if not humanoid or humanoid.Health <= 0 or not hrp then
+		return
+	end
+
+	if orbiting then
+		return
+	end
+
+	local distance = (hrp.Position - body.Position).Magnitude
+
+	if distance <= DETECT_RADIUS then
+		startOrbit(body)
 	end
 end
 
@@ -3076,6 +3164,13 @@ local function clearAllEntities()
 
 	if tornadoEntity then tornadoEntity:Destroy(); tornadoEntity = nil end
 	if spawnZone then spawnZone:Destroy(); spawnZone = nil end
+	
+	stopOrbit()
+
+local hum = getHumanoid()
+if hum then
+	hum.PlatformStand = false
+end
 end
 
 
@@ -3317,7 +3412,7 @@ holderLayout.Parent = holder
 
 -- Sound tick
 local baseSound = Instance.new("Sound")
-baseSound.SoundId = "rbxassetid://138433083253737"
+baseSound.SoundId = "rbxassetid://0"
 baseSound.Volume = 0.7
 baseSound.Parent = SoundService
 
@@ -3815,7 +3910,7 @@ holderLayout.Parent = holder
 
 -- Sound tick
 local baseSound = Instance.new("Sound")
-baseSound.SoundId = "rbxassetid://138433083253737"
+baseSound.SoundId = "rbxassetid://0"
 baseSound.Volume = 0.7
 baseSound.Parent = SoundService
 
@@ -4295,7 +4390,7 @@ holderLayout.Parent = holder
 
 -- Sound tick
 local baseSound = Instance.new("Sound")
-baseSound.SoundId = "rbxassetid://138433083253737"
+baseSound.SoundId = "rbxassetid://0"
 baseSound.Volume = 0.7
 baseSound.Parent = SoundService
 
@@ -4546,9 +4641,23 @@ else
 end
 
 -- Láº¥y phÃ²ng hiá»‡n táº¡i
-local roomId = ReplicatedStorage.GameData.LatestRoom.Value
-local room = workspace.CurrentRooms:FindFirstChild(tostring(roomId))
-if not room then return end
+-- THÊM
+local spawnedRooms = {}
+
+local function handleRoom(roomId)
+	if spawnedRooms[roomId] then
+		return
+	end
+	
+	spawnedRooms[roomId] = true
+
+	-- 10% tỉ lệ spawn
+	if math.random(1, 10) ~= 1 then
+		return
+	end
+
+	local room = workspace.CurrentRooms:FindFirstChild(tostring(roomId))
+	if not room then return end
 
 -- HÃ m Ä‘á»ƒ setup vÃ  Ä‘áº·t model lÃªn vá»‹ trÃ­ chá»‰ Ä‘á»‹nh
 local function spawnItem(surfacePart)
@@ -4810,6 +4919,14 @@ if assets then
         end
     end
 end
+end
+
+-- Spawn khi vào phòng mới
+handleRoom(ReplicatedStorage.GameData.LatestRoom.Value)
+
+ReplicatedStorage.GameData.LatestRoom:GetPropertyChangedSignal("Value"):Connect(function()
+	handleRoom(ReplicatedStorage.GameData.LatestRoom.Value)
+end)
 end)
 
 -- ========= CHILLI ===========
@@ -4851,9 +4968,23 @@ else
 end
 
 -- Láº¥y phÃ²ng hiá»‡n táº¡i trong game Doors
-local roomId = ReplicatedStorage.GameData.LatestRoom.Value
-local room = workspace.CurrentRooms:FindFirstChild(tostring(roomId))
-if not room then return end
+-- THÊM
+local spawnedRooms = {}
+
+local function handleRoom(roomId)
+	if spawnedRooms[roomId] then
+		return
+	end
+	
+	spawnedRooms[roomId] = true
+
+	-- 10% tỉ lệ spawn
+	if math.random(1, 10) ~= 1 then
+		return
+	end
+
+	local room = workspace.CurrentRooms:FindFirstChild(tostring(roomId))
+	if not room then return end
 
 local function spawnItem(surfacePart)
     local clone = block:Clone()
@@ -5119,6 +5250,14 @@ if assets then
         end
     end
 end
+
+-- Spawn khi vào phòng mới
+handleRoom(ReplicatedStorage.GameData.LatestRoom.Value)
+
+ReplicatedStorage.GameData.LatestRoom:GetPropertyChangedSignal("Value"):Connect(function()
+	handleRoom(ReplicatedStorage.GameData.LatestRoom.Value)
+end)
+
 end)
 
 -- Script DOORS: Báº£n gá»‘c 3s ná»• kÃ­nh vÄƒng + TÄƒng Ä‘á»™ láº¡nh ngáº§m + PhÃ¡t Ã¢m thanh hÃºt liÃªn tá»¥c (Tá»± táº¯t khi háº¿t hÃºt)
@@ -5457,3 +5596,5 @@ print("cak")
 task.wait(1)
 print("Tui Ä‘áº¹p trai")
 TriggerGlassShatter()
+
+print("no error ez ez ez") 
