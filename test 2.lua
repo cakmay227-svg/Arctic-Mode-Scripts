@@ -5258,6 +5258,8 @@ ReplicatedStorage.GameData.LatestRoom:GetPropertyChangedSignal("Value"):Connect(
 	handleRoom(ReplicatedStorage.GameData.LatestRoom.Value)
 end)
 
+end
+
 end)
 
 -- Script DOORS: Báº£n gá»‘c 3s ná»• kÃ­nh vÄƒng + TÄƒng Ä‘á»™ láº¡nh ngáº§m + PhÃ¡t Ã¢m thanh hÃºt liÃªn tá»¥c (Tá»± táº¯t khi háº¿t hÃºt)
