@@ -490,22 +490,7 @@ local function GetNodesFromRoom(room: Model, reversed: boolean): { BasePart }
 		nodes[1] = n
 	end
 
-	-- // PATHFINDING FOLDER FALLBACK LOGIC // --
-	local nodesFolder =
-		room:FindFirstChild("PathfindNodes")
-		or room:FindFirstChild("PathfindingNodes")
-
-	-- nếu ko có folder chuẩn -> search FigureNodes trong descendants
-	if not nodesFolder then
-		for _, d in next, room:GetDescendants() do
-			if d:IsA("Folder") and d.Name == "FigureNodes" then
-				nodesFolder = d
-				break
-			end
-		end
-	end
-
-	-- lấy nodes nếu tồn tại folder hợp lệ
+	local nodesFolder = room:FindFirstChild("PathfindNodes")
 	if nodesFolder then
 		for _, n in next, nodesFolder:GetChildren() do
 			nodes[#nodes + 1] = n
@@ -516,17 +501,17 @@ local function GetNodesFromRoom(room: Model, reversed: boolean): { BasePart }
 	if roomExit then
 		local index = #nodes + 1
 		local n = roomExit:Clone()
-		n.Name = tostring(index)
+		n.Name = index
 		n.CFrame -= Vector3.new(0, 3, 0)
 		nodes[index] = n
 	end
 
 	table.sort(nodes, function(a: BasePart, b: BasePart)
-		if reversed then
-			return tonumber(a.Name) > tonumber(b.Name)
-		else
-			return tonumber(a.Name) < tonumber(b.Name)
-		end
+        if reversed then
+            return tonumber(a.Name) > tonumber(b.Name)
+        else
+            return tonumber(a.Name) < tonumber(b.Name)
+        end
 	end)
 
 	return nodes
