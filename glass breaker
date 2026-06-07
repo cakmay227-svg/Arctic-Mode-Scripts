@@ -1,0 +1,336 @@
+-- Script DOORS: Báº£n gá»‘c 3s ná»• kÃ­nh vÄƒng + TÄƒng Ä‘á»™ láº¡nh ngáº§m + PhÃ¡t Ã¢m thanh hÃºt liÃªn tá»¥c (Tá»± táº¯t khi háº¿t hÃºt)
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local rootPart = character:WaitForChild("HumanoidRootPart")
+local humanoid = character:WaitForChild("Humanoid")
+
+-- ID Asset vÃ  SFX chuáº©n cá»§a bro
+local idModelGoc   = "rbxassetid://90526764681098"   
+local idMeshMoi    = "rbxassetid://9499458031"     
+local idAmThanhNo  = "rbxassetid://80780078526994"   -- Tiáº¿ng ná»• kÃ­nh lÃºc Ä‘áº§u
+local idAmThanhHut = "rbxassetid://71284123166666"   -- Tiáº¿ng hÃºt vÃ²ng láº·p má»›i thÃªm
+
+-- TÃ¬m thÆ° má»¥c chá»©a cÃ¡c phÃ²ng cá»§a game DOORS
+local currentRoomsFolder = Workspace:FindFirstChild("CurrentRooms")
+
+if not currentRoomsFolder then
+    warn("KhÃ´ng tÃ¬m tháº¥y thÆ° má»¥c CurrentRooms trong Workspace!")
+    return
+end
+
+-- 1. XÃC Äá»ŠNH PHÃ’NG CHá»¨A Cá»¬A Sá»” KÃNH
+local targetRoom = nil
+local highestRoomNumber = -1
+
+for _, room in ipairs(currentRoomsFolder:GetChildren()) do
+    local roomNum = tonumber(room.Name)
+    if roomNum and roomNum > highestRoomNumber then
+        highestRoomNumber = roomNum
+    end
+end
+
+local glassRoomNumber = highestRoomNumber - 1
+targetRoom = currentRoomsFolder:FindFirstChild(tostring(glassRoomNumber))
+
+if not targetRoom then
+    glassRoomNumber = highestRoomNumber
+    targetRoom = currentRoomsFolder:FindFirstChild(tostring(highestRoomNumber))
+end
+
+if not targetRoom then
+    warn("KhÃ´ng tÃ¬m tháº¥y phÃ²ng há»£p lá»‡ Ä‘á»ƒ xá»­ lÃ½!")
+    return
+end
+
+-- 2. TÃŒM CHÃNH XÃC PART CÃ“ TÃŠN LÃ€ "Glass"
+local targetGlass = nil
+for _, desc in ipairs(targetRoom:GetDescendants()) do
+    if desc:IsA("BasePart") and desc.Name == "Glass" and desc.Transparency < 1 then
+        targetGlass = desc
+        break 
+    end
+end
+
+if not targetGlass then
+    warn("KhÃ´ng tÃ¬m tháº¥y Part nÃ o tÃªn chÃ­nh xÃ¡c lÃ  'Glass' trong phÃ²ng " .. targetRoom.Name)
+    return
+end
+
+-- HÆ°á»›ng gá»‘c máº·t trÆ°á»›c cá»­a sá»•
+local forwardDirection = (targetGlass.CFrame.LookVector * Vector3.new(1, 0, 1)).Unit
+
+-- HÃ€M KÃCH HOáº T TOÃ€N Bá»˜ HIá»†U á»¨NG Vá»  KÃNH VÃ€ Lá»°C HÃšT
+local function TriggerGlassShatter()
+    local success1, objectsModel = pcall(function() return game:GetObjects(idModelGoc) end)
+    local success2, objectsMesh  = pcall(function() return game:GetObjects(idMeshMoi) end)
+
+    if success1 and objectsModel and #objectsModel > 0 and success2 and objectsMesh and #objectsMesh > 0 then
+        local realModel = objectsModel[1]
+        local meshTemplate = objectsMesh[1]
+        
+        -- PhÃ¡t Ã¢m thanh ná»• kÃ­nh ban Ä‘áº§u
+        local glassSound = Instance.new("Sound")
+        glassSound.SoundId = idAmThanhNo
+        glassSound.Volume = 2
+        glassSound.RollOffMaxDistance = 100
+        glassSound.Parent = targetGlass
+        glassSound:Play()
+        task.delay(5, function() glassSound:Destroy() end)
+
+        -- [Má»šI]: Táº¡o vÃ  phÃ¡t Ã¢m thanh hÃºt giÃ³ láº·p Ä‘i láº·p láº¡i (Looped = true)
+        local suctionSound = Instance.new("Sound")
+        suctionSound.SoundId = idAmThanhHut
+        suctionSound.Volume = 2
+        suctionSound.Looped = true -- Äá»ƒ looped=true theo Ã½ bro
+        suctionSound.RollOffMaxDistance = 80
+        suctionSound.Parent = targetGlass
+        suctionSound:Play()
+
+        local glassCFrame = targetGlass.CFrame
+        targetGlass.Transparency = 1
+        targetGlass.CanCollide = false
+        
+        local allParts = {}
+        for _, desc in ipairs(realModel:GetDescendants()) do
+            if desc:IsA("BasePart") then table.insert(allParts, desc) end
+        end
+
+        local partsToKeep = {}
+        for _, part in ipairs(allParts) do
+            if math.random(1, 100) <= 30 then
+                part:Destroy()
+            else
+                table.insert(partsToKeep, part)
+            end
+        end
+
+        realModel.Parent = Workspace
+        if realModel:IsA("Model") then
+            realModel:PivotTo(glassCFrame)
+        else
+            realModel.CFrame = glassCFrame
+        end
+
+        local raycastParams = RaycastParams.new()
+        raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+        raycastParams.FilterDescendantsInstances = {character, realModel}
+
+        local hasSwapped = false
+        local finalMesh = nil
+        local hitboxShed = nil
+
+        -- Lá»°C HÃšT LIÃŠN Tá»¤C 67 STUDS
+        local suctionForce = 9.5       
+        local maxSuctionDistance = 67 
+        
+        local lastColdUpdateTime = os.clock()
+
+        local mainLoopConnection
+        mainLoopConnection = RunService.Heartbeat:Connect(function()
+            -- Náº¿u nhÃ¢n váº­t hoáº·c cá»­a sá»• biáº¿n máº¥t -> Ngáº¯t hÃºt + Táº¯t nháº¡c hÃºt
+            if not rootPart or not rootPart.Parent or not targetGlass or not targetGlass.Parent then
+                if suctionSound then suctionSound:Stop(); suctionSound:Destroy() end
+                mainLoopConnection:Disconnect()
+                return
+            end
+
+            -- Tá»± táº¯t hÃºt khi ngÆ°á»i chÆ¡i Ä‘Ã£ tiáº¿n qua phÃ²ng má»›i xa hÆ¡n
+            local currentHighest = -1
+            for _, room in ipairs(currentRoomsFolder:GetChildren()) do
+                local roomNum = tonumber(room.Name)
+                if roomNum and roomNum > currentHighest then currentHighest = roomNum end
+            end
+
+            if currentHighest > glassRoomNumber + 1 or (currentHighest == glassRoomNumber + 1 and glassRoomNumber == highestRoomNumber) then
+                if suctionSound then suctionSound:Stop(); suctionSound:Destroy() end -- Háº¿t hÃºt thÃ¬ táº¯t nháº¡c
+                mainLoopConnection:Disconnect()
+                return
+            end
+
+            local distanceToWindow = (targetGlass.Position - rootPart.Position).Magnitude
+            
+            -- Xá»­ lÃ½ lá»±c hÃºt táº§m xa vÃ  quáº£n lÃ½ báº­t/táº¯t Ã¢m thanh dá»±a trÃªn khoáº£ng cÃ¡ch hÃºt
+            if distanceToWindow <= maxSuctionDistance and humanoid.Health > 0 then
+                -- Náº¿u Ä‘ang trong táº§m hÃºt thÃ¬ báº£o Ä‘áº£m Ã¢m thanh Ä‘ang cháº¡y
+                if not suctionSound.IsPlaying then suctionSound:Play() end
+
+                local pullDirection = (targetGlass.Position - rootPart.Position)
+                local horizontalPull = Vector3.new(pullDirection.X, 0, pullDirection.Z).Unit
+                local currentMoveVelocity = humanoid.MoveDirection * humanoid.WalkSpeed
+                
+                rootPart.AssemblyLinearVelocity = Vector3.new(
+                    currentMoveVelocity.X + (horizontalPull.X * suctionForce),
+                    rootPart.AssemblyLinearVelocity.Y, 
+                    currentMoveVelocity.Z + (horizontalPull.Z * suctionForce)
+                )
+            else
+                -- Náº¿u ngÆ°á»i chÆ¡i cháº¡y ra vÆ°á»£t quÃ¡ 67 Studs (háº¿t bá»‹ hÃºt) -> Táº¡m dá»«ng Ã¢m thanh hÃºt
+                if suctionSound.IsPlaying then suctionSound:Stop() end
+            end
+
+            -- [VÃ’NG Láº¶P Äá»˜ Láº NH]: Äáº¥m tháº³ng lá»‡nh ReduceCold khi dÆ°á»›i 15 Studs
+            local currentTime = os.clock()
+            if currentTime - lastColdUpdateTime >= 1 then
+                lastColdUpdateTime = currentTime
+                
+                if distanceToWindow <= 15 and humanoid.Health > 0 then
+                    if game.Players.LocalPlayer:FindFirstChild("ReduceCold") then
+                        game.Players.LocalPlayer.ReduceCold:Fire(-2) 
+                    end
+                end
+            end
+        end)
+
+        local function startContinuousDamageLogic(hitboxPart)
+            local damageInterval = 0.4 
+            local lastTickTime = 0
+            local isStunned = false
+
+            RunService.Heartbeat:Connect(function()
+                if not hitboxPart or not hitboxPart.Parent or not humanoid or humanoid.Health <= 0 then return end
+                
+                if humanoid.MoveDirection.Magnitude > 0 then
+                    local partsInHitbox = Workspace:GetPartsInPart(hitboxPart)
+                    local playerInside = false
+                    
+                    for _, p in ipairs(partsInHitbox) do
+                        if p.Parent == character then playerInside = true; break end
+                    end
+                    
+                    if playerInside then
+                        local currentTime = os.clock()
+                        if currentTime - lastTickTime >= damageInterval then
+                            lastTickTime = currentTime
+                            if humanoid.Health > 70 then
+                                humanoid:TakeDamage(2.5) 
+                                if not isStunned then
+                                    isStunned = true
+                                    local oldSpeed = humanoid.WalkSpeed
+                                    humanoid.WalkSpeed = 6 
+                                    task.delay(0.25, function()
+                                        if humanoid then humanoid.WalkSpeed = oldSpeed end
+                                        isStunned = false
+                                    end)
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+
+        -- VÃ’NG Láº¶P VÄ‚NG Máº¢NH KÃNH Báº¢N Gá»C
+        for _, part in ipairs(partsToKeep) do
+            part.Material = Enum.Material.Glacier           
+            part.Color = Color3.fromRGB(171, 157, 142)       
+            part.Transparency = 0.69                         
+            part.Size = part.Size * 1.5 
+            part.Anchored = true 
+            part.CanCollide = false 
+            if part:IsA("MeshPart") then part.CollisionFidelity = Enum.CollisionFidelity.Box end
+
+            local pushForce = math.random(10, 15) 
+            local spreadSide = glassCFrame.RightVector * math.random(-4, 4)
+            local upwardForce = Vector3.new(0, math.random(5, 10), 0) 
+            
+            local velocity = (forwardDirection * pushForce) + spreadSide + upwardForce
+            local rotVelocity = Vector3.new(math.random(-6, 6), math.random(-6, 6), math.random(-6, 6))
+            local gravity = Vector3.new(0, -55, 0) 
+
+            connection = RunService.Heartbeat:Connect(function(deltaTime)
+                if not part or not part.Parent then connection:Disconnect() return end
+
+                velocity = velocity + gravity * deltaTime
+                local deltaPos = velocity * deltaTime
+                
+                local predictiveRay = Workspace:Raycast(part.Position, deltaPos, raycastParams)
+                local isHitFloor = false
+                local landedPosition = part.Position + deltaPos 
+
+                if predictiveRay and predictiveRay.Instance then
+                    local hitInstance = predictiveRay.Instance
+                    if hitInstance.Name == "Floor" or string.find(hitInstance.Name, "Floor") then
+                        isHitFloor = true
+                        landedPosition = predictiveRay.Position 
+                    end
+                end
+
+                if isHitFloor or part.Position.Y < -90 then
+                    connection:Disconnect()
+                    part.Anchored = true
+                    part.CanCollide = true
+                    part.CFrame = CFrame.new(landedPosition.X, landedPosition.Y, landedPosition.Z) * CFrame.Angles(math.rad(math.random(-5,5)), part.Rotation.Y, math.rad(math.random(-5,5)))
+                    
+                    if not hasSwapped then
+                        hasSwapped = true
+                        finalMesh = meshTemplate:Clone()
+                        local meshPart = finalMesh:IsA("MeshPart") and finalMesh or finalMesh:FindFirstChildOfClass("MeshPart")
+                        local meshSize = Vector3.new(5, 1, 5) 
+                        
+                        if meshPart then
+                            meshPart.Material = Enum.Material.Glacier
+                            meshPart.Color = Color3.fromRGB(171, 157, 142)
+                            meshPart.Transparency = 0.69
+                            meshPart.CollisionFidelity = Enum.CollisionFidelity.Hull 
+                            meshSize = meshPart.Size
+                        end
+                        
+                        if finalMesh:IsA("Model") then
+                            for _, p in ipairs(finalMesh:GetDescendants()) do
+                                if p:IsA("BasePart") then p.Anchored = true; p.CanCollide = true end
+                            end
+                            finalMesh:PivotTo(CFrame.new(landedPosition.X, landedPosition.Y, landedPosition.Z) * CFrame.Angles(0, math.rad(math.random(0, 360)), 0))
+                            meshSize = finalMesh:GetExtentsSize()
+                        else
+                            finalMesh.Anchored = true
+                            finalMesh.CanCollide = true
+                            finalMesh.CFrame = CFrame.new(landedPosition.X, landedPosition.Y, landedPosition.Z) * CFrame.Angles(0, math.rad(math.random(0, 360)), 0)
+                            meshSize = finalMesh.Size
+                        end
+                        finalMesh.Parent = Workspace
+                        
+                        hitboxShed = Instance.new("Part")
+                        hitboxShed.Name = "Glass_Hitbox"
+                        hitboxShed.Size = Vector3.new(meshSize.X, 5, meshSize.Z)
+                        hitboxShed.CFrame = CFrame.new(landedPosition.X, landedPosition.Y + (5 / 2), landedPosition.Z)
+                        hitboxShed.Transparency = 1       
+                        hitboxShed.CanCollide = false     
+                        hitboxShed.Anchored = true        
+                        hitboxShed.Parent = Workspace
+                        
+                        startContinuousDamageLogic(hitboxShed)
+                    end
+                    return
+                end
+                part.CFrame = (part.CFrame + deltaPos) * CFrame.Angles(math.rad(rotVelocity.X), math.rad(rotVelocity.Y), math.rad(rotVelocity.Z))
+            end)
+        end
+        
+        local distanceCleanupConnection
+        distanceCleanupConnection = RunService.Heartbeat:Connect(function()
+            if not rootPart or not rootPart.Parent then return end
+            local distance = (rootPart.Position - glassCFrame.Position).Magnitude
+            if distance >= 80 then
+                distanceCleanupConnection:Disconnect()
+                if realModel then realModel:Destroy() end
+                if finalMesh then finalMesh:Destroy() end
+                if hitboxShed then hitboxShed:Destroy() end
+                print("coincard")
+            end
+        end)
+    else
+        warn("Lá»—i load asset vá»¡ kÃ­nh.")
+    end
+end
+
+-- =========================================================================
+-- Äáº¾M NGÆ¯á»¢C ÄÃšNG 3 GIÃ‚Y Rá»’I KÃCH HOáº T BáºªY
+-- =========================================================================
+print("cak")
+task.wait(1)
+print("Tui Ä‘áº¹p trai")
+TriggerGlassShatter()
