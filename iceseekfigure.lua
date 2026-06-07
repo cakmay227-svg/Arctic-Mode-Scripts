@@ -468,13 +468,27 @@ local function applyRoom50Ice(model)
     end
 end
 
-local rooms = workspace:FindFirstChild("CurrentRooms")
-if rooms then
-    local room50 = rooms:FindFirstChild("50")
-    if room50 then
-        applyRoom50Ice(room50)
+task.spawn(function()
+
+    local rooms = workspace:FindFirstChild("CurrentRooms")
+
+    if rooms then
+        local room50 = rooms:FindFirstChild("50")
+        if room50 then
+            applyRoom50Ice(room50)
+        end
     end
-end
+
+    while task.wait(15) do
+        if rooms and rooms.Parent then
+            local room50 = rooms:FindFirstChild("50")
+            if room50 then
+                applyRoom50Ice(room50)
+            end
+        end
+    end
+
+end)
 
 ------------------------------------------------
 -- SOUND CACHE FIX (MISSING VARIABLE FIX)
