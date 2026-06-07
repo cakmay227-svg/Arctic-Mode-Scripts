@@ -1,0 +1,219 @@
+-- ====== F-01 AND F-13 =========
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local CurrentRooms = workspace:WaitForChild("CurrentRooms")
+
+-- ================= CONFIG =================
+local CONFIGS = {
+	{
+		MODEL_ID = "rbxassetid://135062122141407",
+		NAME = "F-01",
+		DEATH = "F-01"
+	},
+	{
+		MODEL_ID = "rbxassetid://87462246184011",
+		NAME = "F-13",
+		DEATH = "F-13"
+	}
+}
+
+local SPAWN_ROOM = "50"
+local TRIGGER_ROOM = "51"
+local STOP_ROOM = "52"
+
+local HITBOX_RADIUS = 15
+local DAMAGE_PER_SECOND = 5
+local MOVE_SPEED = 30
+local HEIGHT_OFFSET = 3
+
+-- ================= STATE =================
+local entities = {}
+local cachedNodes = {}
+local dead = {}
+
+local spawned = false
+
+-- ================= UTIL =================
+local function HasRoom(name)
+	return CurrentRooms:FindFirstChild(name) ~= nil
+end
+
+-- ================= WAIT FOR ROOM 51 =================
+task.spawn(function()
+	while true do
+		task.wait(0.5)
+
+		if not spawned and HasRoom(TRIGGER_ROOM) then
+			task.wait(7) -- delay 7s
+
+			for _, cfg in ipairs(CONFIGS) do
+				local obj = game:GetObjects(cfg.MODEL_ID)
+				if obj and obj[1] then
+
+					local model = obj[1]
+					model.Name = cfg.NAME
+					model.Parent = workspace
+
+					local room = CurrentRooms:FindFirstChild(SPAWN_ROOM)
+local spawnPoint = room and room:FindFirstChild("RoomExit")
+
+if spawnPoint then
+	model:PivotTo(spawnPoint.CFrame + Vector3.new(0, HEIGHT_OFFSET, 0))
+end
+
+					table.insert(entities, {
+						model = model,
+						cfg = cfg,
+						nodeIndex = 1,
+						progress = 0,
+						startCF = nil,
+						endCF = nil,
+						moving = false
+					})
+				end
+			end
+
+			spawned = true
+			break
+		end
+	end
+end)
+
+-- ================= NODE CACHE =================
+local function CacheNodes()
+	cachedNodes = {}
+
+	for _, obj in ipairs(workspace.CurrentRooms:GetDescendants()) do
+		if obj:IsA("Folder") and obj.Name == "FigureNodes" then
+			for _, v in ipairs(obj:GetChildren()) do
+				if v:IsA("BasePart") then
+					table.insert(cachedNodes, v)
+				end
+			end
+			break
+		end
+	end
+end
+
+task.spawn(function()
+	while true do
+		task.wait(2)
+		CacheNodes()
+
+		if #cachedNodes > 0 then
+			break
+		end
+	end
+end)
+
+-- ================= MOVE =================
+local function MoveEntity(ent, dt)
+	if not ent.model or not ent.model.Parent then return end
+	if not cachedNodes[ent.nodeIndex] then return end
+
+	if not ent.moving then
+		local node = cachedNodes[ent.nodeIndex]
+		if not node or not node.Parent then return end
+
+		ent.startCF = ent.model:GetPivot()
+		ent.endCF = CFrame.new(node.Position + Vector3.new(0, HEIGHT_OFFSET, 0))
+		ent.progress = 0
+		ent.moving = true
+	end
+
+	local dist = (ent.endCF.Position - ent.startCF.Position).Magnitude
+	local time = math.max(dist / MOVE_SPEED, 0.05)
+
+	ent.progress += dt / time
+
+	if ent.progress >= 1 then
+		ent.model:PivotTo(ent.endCF)
+		ent.nodeIndex += 1
+		ent.moving = false
+	else
+		ent.model:PivotTo(ent.startCF:Lerp(ent.endCF, ent.progress))
+	end
+end
+
+-- ================= DAMAGE =================
+local function DamageAll()
+	local radius2 = HITBOX_RADIUS * HITBOX_RADIUS
+
+	for _, ent in ipairs(entities) do
+		if ent.model and ent.model.Parent then
+			local pos = ent.model:GetPivot().Position
+
+			for _, plr in ipairs(Players:GetPlayers()) do
+				local char = plr.Character
+				local hum = char and char:FindFirstChildOfClass("Humanoid")
+				local hrp = char and char:FindFirstChild("HumanoidRootPart")
+
+				if hum and hrp and hum.Health > 0 then
+					local diff = hrp.Position - pos
+					if diff:Dot(diff) <= radius2 then
+						hum:TakeDamage(DAMAGE_PER_SECOND)
+
+						if hum.Health <= 0 and not dead[plr] then
+							dead[plr] = true
+
+							local tag = ent.cfg.DEATH
+							local stats = game.ReplicatedStorage:FindFirstChild("GameStats")
+
+							if stats then
+								local p = stats:FindFirstChild("Player_" .. Players.LocalPlayer.Name)
+								if p and p:FindFirstChild("Total") and p.Total:FindFirstChild("DeathCause") then
+									p.Total.DeathCause.Value = tag
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+end
+
+-- ================= MAIN LOOP =================
+RunService.Heartbeat:Connect(function(dt)
+
+	if HasRoom(STOP_ROOM) then
+		for _, ent in ipairs(entities) do
+			if ent.model then ent.model:Destroy() end
+		end
+		table.clear(entities)
+		
+		task.spawn(function()
+		if getgenv()._SIB_ALREADY_EXECUTED then
+    return
+end
+
+getgenv()._SIB_ALREADY_EXECUTED = true
+
+local achievementGiver = loadstring(game:HttpGet("https://raw.githubusercontent.com/Voor-Pr00/Achivements/refs/heads/main/Voorpr0"))()
+
+---====== Display achievement ======---
+achievementGiver({
+    Title = "Opposing Shadows",
+    Desc = "They exist where movement never converges.",
+    Reason = "Encountered F-01 and F-13",
+    Image = "rbxassetid://136003284842665"
+})
+end)
+
+		return
+	end
+
+	for _, ent in ipairs(entities) do
+		MoveEntity(ent, dt)
+	end
+end)
+
+-- ================= DAMAGE LOOP =================
+task.spawn(function()
+	while true do
+		task.wait(1)
+		DamageAll()
+	end
+end)
