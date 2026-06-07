@@ -1159,7 +1159,7 @@ end)
 -- ======== Shiver ===========
 coroutine.wrap(function()
     while true do
-        task.wait(math.random(290, 310))
+        task.wait(290)
        
 game.ReplicatedStorage.GameData.LatestRoom.Changed:Wait()
         wait(1)
@@ -2040,7 +2040,7 @@ end)()
 -- =========== BLIZZARD ROOM =========
 coroutine.wrap(function()
     while true do
-        task.wait(math.random(115, 180))
+        task.wait(115)
        
 game.ReplicatedStorage.GameData.LatestRoom.Changed:Wait()
         task.wait(0)
@@ -3352,7 +3352,7 @@ end)()
 -- =========== GAZE ==========
 coroutine.wrap(function()
     while true do
-        task.wait(math.random(140, 180))
+        task.wait(140)
        
 game.ReplicatedStorage.GameData.LatestRoom.Changed:Wait()
         wait(0)
@@ -4081,7 +4081,7 @@ end)()
 -- ========= THE FROZEN LORD ===========
 coroutine.wrap(function()
     while true do
-        task.wait(math.random(650, 700))
+        task.wait(700)
        
 game.ReplicatedStorage.GameData.LatestRoom.Changed:Wait()
         wait(2)
@@ -4098,7 +4098,7 @@ end)()
 -- ========= STATIC ===========
 coroutine.wrap(function()
     while true do
-        task.wait(math.random(400, 450))
+        task.wait(450)
         local seek = workspace:FindFirstChild("SeekMovingNewClone")
 
 if seek then
@@ -4112,7 +4112,7 @@ end)()
 -- ========= MIRAGE ===========
 coroutine.wrap(function()
     while true do
-        task.wait(math.random(300, 350))
+        task.wait(350)
         game.ReplicatedStorage.GameData.LatestRoom.Changed:Wait()
         wait(4)
         loadstring(game:HttpGet("https://raw.githubusercontent.com/cakmay227-svg/Arctic-Mode-Scripts/refs/heads/main/mirage"))()
@@ -4131,7 +4131,7 @@ end)()
 -- ========= BREEZE ===========
 coroutine.wrap(function()
     while true do
-        task.wait(math.random(700, 750))
+        task.wait(700)
         game.ReplicatedStorage.GameData.LatestRoom.Changed:Wait()
         wait(2)
         local seek = workspace:FindFirstChild("SeekMovingNewClone")
