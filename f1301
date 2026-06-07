@@ -47,6 +47,10 @@ task.spawn(function()
 
 		if not spawned and HasRoom(TRIGGER_ROOM) then
 			task.wait(7) -- delay 7s
+			
+			while #cachedNodes == 0 do
+	task.wait()
+end
 
 			for _, cfg in ipairs(CONFIGS) do
 				local obj = game:GetObjects(cfg.MODEL_ID)
@@ -64,14 +68,24 @@ if spawnPoint then
 end
 
 					table.insert(entities, {
-						model = model,
-						cfg = cfg,
-						nodeIndex = 1,
-						progress = 0,
-						startCF = nil,
-						endCF = nil,
-						moving = false
-					})
+    model = model,
+    cfg = cfg,
+
+    nodeIndex = (cfg.NAME == "F-01") and 1 or #cachedNodes,
+    forward = (cfg.NAME == "F-01"),
+
+    progress = 0,
+    startCF = nil,
+    endCF = nil,
+    moving = false
+})
+
+print(
+	cfg.NAME,
+	"Start Node =",
+	(cfg.NAME == "F-01") and 1 or #cachedNodes
+)
+
 				end
 			end
 
@@ -87,11 +101,23 @@ local function CacheNodes()
 
 	for _, obj in ipairs(workspace.CurrentRooms:GetDescendants()) do
 		if obj:IsA("Folder") and obj.Name == "FigureNodes" then
+
 			for _, v in ipairs(obj:GetChildren()) do
 				if v:IsA("BasePart") then
 					table.insert(cachedNodes, v)
 				end
 			end
+
+			table.sort(cachedNodes, function(a, b)
+				local na = tonumber(a.Name:match("%d+")) or 0
+				local nb = tonumber(b.Name:match("%d+")) or 0
+				return na < nb
+			end)
+
+			print("Cached Nodes:", #cachedNodes)
+			print("First:", cachedNodes[1] and cachedNodes[1].Name)
+			print("Last:", cachedNodes[#cachedNodes] and cachedNodes[#cachedNodes].Name)
+
 			break
 		end
 	end
@@ -110,8 +136,13 @@ end)
 
 -- ================= MOVE =================
 local function MoveEntity(ent, dt)
-	if not ent.model or not ent.model.Parent then return end
-	if not cachedNodes[ent.nodeIndex] then return end
+	if ent.nodeIndex < 1 or ent.nodeIndex > #cachedNodes then
+    return
+end
+
+if not cachedNodes[ent.nodeIndex] then
+    return
+end
 
 	if not ent.moving then
 		local node = cachedNodes[ent.nodeIndex]
@@ -129,9 +160,15 @@ local function MoveEntity(ent, dt)
 	ent.progress += dt / time
 
 	if ent.progress >= 1 then
-		ent.model:PivotTo(ent.endCF)
-		ent.nodeIndex += 1
-		ent.moving = false
+    ent.model:PivotTo(ent.endCF)
+
+    if ent.forward then
+        ent.nodeIndex += 1
+    else
+        ent.nodeIndex -= 1
+    end
+
+    ent.moving = false
 	else
 		ent.model:PivotTo(ent.startCF:Lerp(ent.endCF, ent.progress))
 	end
