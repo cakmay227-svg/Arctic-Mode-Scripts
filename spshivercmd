@@ -421,7 +421,7 @@ local entity = spawner.Create({
 entity:SetCallback("OnSpawned", function()
 	print("Entity has spawned")
 
-	local model = entity.Entity and entity.Entity.Model or workspace:FindFirstChild("Super Shiver")
+	local model = entity.Entity and entity.Entity.Model
 
 	if model then
 		applyRedTintKeepBrightness(model)
