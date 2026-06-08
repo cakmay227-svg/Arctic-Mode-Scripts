@@ -1,0 +1,264 @@
+local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
+local currentRooms = workspace:WaitForChild("CurrentRooms")
+local hasSpawnedOnce = false
+
+local LocalPlayer = Players.LocalPlayer
+local MODEL_ID = "rbxassetid://79649424759468"
+
+local function loadModelFromId(assetPath)
+    local success, result = pcall(function() return game:GetObjects(assetPath) end)
+    if success and result and #result > 0 then return result[1] end
+    return nil
+end
+
+local function configureFireSounds(firePart)
+    for _, child in pairs(firePart:GetDescendants()) do
+        if child:IsA("Sound") then
+            child.PlaybackSpeed = 2
+            child.Volume = 10
+        end
+    end
+end
+
+local function setupWarmthZone(firePart, roomName)
+    local totalColdReduced = 0 
+
+    task.spawn(function()
+        while firePart and firePart.Parent do
+            local character = LocalPlayer.Character
+            local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+
+            if rootPart then
+                local distance = (rootPart.Position - firePart.Position).Magnitude
+
+                if distance <= 25 then
+                    if LocalPlayer:FindFirstChild("ReduceCold") then
+                        LocalPlayer.ReduceCold:Fire(9)
+                        totalColdReduced = totalColdReduced + 9
+                       
+                                        
+                        
+                        if totalColdReduced >= 100 then
+                            firePart:Destroy()
+                           
+         
+
+                            break 
+                        end
+                    end
+                end
+            end
+            task.wait(1) 
+        end
+    end)
+end
+
+local function setupFireDamageZone(firePart, roomName)
+    configureFireSounds(firePart)
+    setupWarmthZone(firePart, roomName)
+
+    task.spawn(function()
+        while firePart and firePart.Parent do
+            local character = LocalPlayer.Character
+            local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+            local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+
+            if humanoid and humanoid.Health > 0 and rootPart then
+                local playerPos = firePart.CFrame:PointToObjectSpace(rootPart.Position)
+                local fireSize = firePart.Size
+
+                local inX = math.abs(playerPos.X) <= (fireSize.X / 2) + 0.5
+                local inZ = math.abs(playerPos.Z) <= (fireSize.Z / 2) + 0.5
+                local inY = math.abs(playerPos.Y) <= (fireSize.Y / 2) + 2
+
+                if inX and inY and inZ then
+                    humanoid.Health = math.max(0, humanoid.Health - 15)
+                end
+            end
+            task.wait(0.15) 
+        end
+    end)
+end
+
+local function getRandomFloor(room)
+    local floors = {}
+
+    for _, obj in ipairs(room:GetDescendants()) do
+        if obj:IsA("BasePart") and obj.Name == "Floor" then
+            table.insert(floors, obj)
+        end
+    end
+
+    -- fallback nếu không có tên "Floor"
+    if #floors == 0 then
+        for _, obj in ipairs(room:GetDescendants()) do
+            if obj:IsA("BasePart") then
+                table.insert(floors, obj)
+            end
+        end
+    end
+
+    if #floors == 0 then return nil end
+
+    return floors[math.random(1, #floors)]
+end
+
+local function applyRedEffect(model)
+
+    -- SCALE MODEL AN TOÀN (KHÔNG LỆCH POSITION)
+    if model and model:IsA("Model") then
+        model:ScaleTo(3)
+    end
+
+    for _, obj in ipairs(model:GetDescendants()) do
+
+        -- Particle → đỏ
+        if obj:IsA("ParticleEmitter") then
+            obj.Color = ColorSequence.new(Color3.fromRGB(255, 0, 0))
+        end
+
+        -- Light → đỏ nhưng giữ intensity/brightness
+        if obj:IsA("Light") then
+            obj.Color = Color3.fromRGB(255, 0, 0)
+            obj.Brightness = 2
+            obj.Range = 20
+        end
+
+        -- Fire → đỏ + giữ heat/size
+        if obj:IsA("Fire") then
+            obj.Color = Color3.fromRGB(255, 0, 0)
+            obj.SecondaryColor = Color3.fromRGB(120, 0, 0)
+        end
+
+        -- optional: nếu có Beam (hay gặp trong VFX)
+        if obj:IsA("Beam") then
+            obj.Color = ColorSequence.new(Color3.fromRGB(255, 0, 0))
+        end
+    end
+end
+
+local function applySoundDistortion(model)
+    for _, obj in ipairs(model:GetDescendants()) do
+        if obj:IsA("Sound") then
+
+            -- 1. pitch random nhẹ
+            obj.PlaybackSpeed = obj.PlaybackSpeed * (1 + math.random(-10, 10) / 100)
+
+            -- 2. volume boost nhẹ
+            obj.Volume = math.clamp(obj.Volume * 1.3, 0, 10)
+
+            -- 3. random echo feel (delay fake bằng playback shift loop)
+            task.spawn(function()
+                while obj and obj.Parent do
+                    obj.PlaybackSpeed = obj.PlaybackSpeed * (0.98 + math.random() * 0.04)
+                    task.wait(math.random(5, 15) / 100)
+                end
+            end)
+
+            -- 4. stereo widen (fake bằng EmitterSize if SoundEmitter exist)
+            obj.RollOffMaxDistance = obj.RollOffMaxDistance * 1.5
+
+            -- 5. slight bass distortion feel (fake low pitch wobble)
+            task.spawn(function()
+                while obj and obj.Parent do
+                    obj.PlaybackSpeed = 0.95 + math.random() * 0.1
+                    task.wait(0.2)
+                end
+            end)
+        end
+    end
+end
+
+local function scaleAndFixHeight(model, floor)
+    if not model or not model:IsA("Model") then return end
+
+    -- scale trước
+    model:ScaleTo(3)
+
+    -- lấy bounding box sau scale
+    local cf, size = model:GetBoundingBox()
+
+    -- tính đáy model
+    local bottomOffset = size.Y / 2
+
+    -- lấy vị trí hiện tại (center model)
+    local pos = cf.Position
+
+    -- snap lại đúng mặt floor
+    local newY = (floor.Position.Y + floor.Size.Y / 2) + bottomOffset
+
+    model:PivotTo(CFrame.new(pos.X, newY, pos.Z))
+end
+
+local function processRoom(room)
+    if hasSpawnedOnce then return end
+    hasSpawnedOnce = true
+
+    task.wait(0.2)
+
+    local floor = getRandomFloor(room)
+    if not floor then return end
+
+    local decorModel = loadModelFromId(MODEL_ID)
+    if not decorModel then return end
+    
+    applyRedEffect(decorModel)
+applySoundDistortion(decorModel)
+scaleAndFixHeight(decorModel, floor)
+
+    decorModel.Name = "Ice Decor Model"
+
+    for _, part in ipairs(decorModel:GetDescendants()) do
+        if part:IsA("BasePart") then
+
+            if string.find(part.Name, "Fire") then
+                part.CanCollide = false
+                part.CanQuery = true
+                part.CanTouch = true
+
+                setupFireDamageZone(part, room.Name)
+            else
+                part.CanCollide = false
+                part.CanQuery = false
+                part.CanTouch = false
+            end
+        end
+    end
+
+    decorModel.Parent = floor
+
+    local randomX = (math.random() - 0.5) * floor.Size.X
+local randomZ = (math.random() - 0.5) * floor.Size.Z
+
+local spawnCFrame =
+    floor.CFrame
+    * CFrame.new(
+        randomX,
+        (floor.Size.Y / 2) + 1,
+        randomZ
+    )
+
+local randomRotationY = math.rad(math.random(0, 360))
+
+decorModel:PivotTo(
+    spawnCFrame * CFrame.Angles(0, randomRotationY, 0)
+)
+
+end
+
+local latestRoom
+
+for _, room in ipairs(currentRooms:GetChildren()) do
+    if not latestRoom or tonumber(room.Name) > tonumber(latestRoom.Name) then
+        latestRoom = room
+    end
+end
+
+if latestRoom then
+    local targetRoom = currentRooms:FindFirstChild(tostring(tonumber(latestRoom.Name) - 1))
+
+    if targetRoom then
+        processRoom(targetRoom)
+    end
+end
