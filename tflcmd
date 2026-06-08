@@ -1,0 +1,232 @@
+local function GitAud(soundlink, filename)
+    local url = soundlink
+    local FileName = filename
+    if not isfile(FileName..".mp3") then
+        writefile(FileName..".mp3", game:HttpGet(url))
+    end
+    return (getcustomasset or getsynasset)(FileName..".mp3")
+end
+
+
+local currentLoopSound = nil
+local isEntityAlive = false
+
+
+local function PlayEntityTheme()
+    isEntityAlive = true
+    
+    local startAsset = GitAud("https://github.com/vuivuiviu2/Frost-Mode/raw/refs/heads/main/Leak%20Music%20start.mp3", "frost_start")
+    local loopAsset = GitAud("https://github.com/vuivuiviu2/Frost-Mode/raw/refs/heads/main/Loop.mp3", "frost_loop")
+    
+    local startSound = Instance.new("Sound")
+    startSound.Name = "Frost_Start"
+    startSound.SoundId = startAsset
+    startSound.Volume = 2
+    startSound.Looped = false
+    startSound.Parent = workspace
+    
+    startSound:Play()
+    
+    startSound.Ended:Wait() 
+    startSound:Destroy()
+    
+    if isEntityAlive and not currentLoopSound then
+        local loopSound = Instance.new("Sound")
+        loopSound.Name = "Frost_Loop"
+        loopSound.SoundId = loopAsset
+        loopSound.Volume = 2
+        loopSound.Looped = true
+        loopSound.Parent = workspace
+        
+        loopSound:Play()
+        currentLoopSound = loopSound
+    end
+end
+
+
+local function StopEntityTheme()
+    isEntityAlive = false
+    
+    if currentLoopSound then
+        currentLoopSound:Stop()
+        currentLoopSound:Destroy()
+        currentLoopSound = nil
+    end
+    
+    local endAsset = GitAud("https://github.com/vuivuiviu2/Frost-Mode/raw/refs/heads/main/end.mp3", "frost_end")
+    
+    local endSound = Instance.new("Sound")
+    endSound.Name = "Frost_End"
+    endSound.SoundId = endAsset
+    endSound.Volume = 2
+    endSound.Looped = false
+    endSound.Parent = workspace
+    
+    endSound:Play()
+    
+    task.spawn(function()
+        endSound.Ended:Wait()
+        endSound:Destroy()
+    end)
+end
+
+
+local Spawner = loadstring(game:HttpGet("https://raw.githubusercontent.com/RegularVynixu/DOORS-Entity-Spawner-V2/main/init.luau"))()
+
+
+local entity = Spawner:Create({
+	Entity = {
+		Name = "The Frozen Lord",
+		Asset = "70620587528404",
+		HeightOffset = 0
+	},
+	Lights = {
+		Flicker = {
+			Enabled = true,
+			Duration = 10
+		},
+		Shatter = true,
+		Repair = false
+	},
+	Earthquake = {
+		Enabled = true
+	},
+	CameraShake = {
+		Enabled = true,
+		Range = 100,
+		Values = {4.5, 50, 0.3, 10}
+	},
+	Movement = {
+		Speed = 606,
+		Delay = 9.5,
+		Reversed = false
+	},
+	Rebounding = {
+		Enabled = true,
+		Type = "Ambush",
+		Min = 7,
+		Max = 8,
+		Delay = 0
+	},
+	Damage = {
+		Enabled = true,
+		IgnoreHiding = false,
+		Range = 60,
+		Amount = 125
+	},
+	Crucifixion = {
+		Enabled = true,
+		Range = 80,
+		Resist = false,
+		Break = true
+	},
+	Death = {
+		Type = "Guiding",
+		Hints = {"Death", "Hints", "Go", "Here"},
+		Cause = "The Frozen Lord"
+	}
+})
+
+
+entity:SetCallback("OnSpawned", function()
+    print("Entity has spawned")
+    
+    -- [ÄOáº N CODE ÄÃ“NG BÄ‚NG KHI XUáº¤T HIá»†N]
+    local player = game:GetService("Players").LocalPlayer
+    if player:FindFirstChild("ToggleFreezeCold") then
+        task.spawn(function()
+            player.ToggleFreezeCold:Fire(true) -- Táº M Dá»ªNG THANH (ÄÃ³ng bÄƒng % táº¡i chá»—)
+        end)
+    end
+    --------------------------------------
+    
+    task.spawn(PlayEntityTheme)
+    
+    local spawnSound = Instance.new("Sound")
+    spawnSound.SoundId = "rbxassetid://139210252225248"
+    spawnSound.PlaybackSpeed = 0.35
+    spawnSound.Volume = 0.01
+    spawnSound.Parent = workspace
+    spawnSound:Play()
+    
+    spawnSound.Ended:Connect(function()
+        spawnSound:Destroy()
+    end)
+    
+    game.Lighting.MainColorCorrection.TintColor = Color3.fromRGB(0, 150, 255)
+    game.Lighting.MainColorCorrection.Contrast = 10
+    
+    local tween = game:GetService("TweenService")
+    tween:Create(game.Lighting.MainColorCorrection, TweenInfo.new(2.5), {Contrast = 0}):Play()
+    
+    local TW = tween:Create(game.Lighting.MainColorCorrection, TweenInfo.new(5), {TintColor = Color3.fromRGB(0, 150, 255)})
+    TW:Play()
+end)
+
+
+entity:SetCallback("OnStartMoving", function()
+    print("Entity has started moving")
+end)
+
+
+entity:SetCallback("OnEnterRoom", function(room: Model, firstTime: boolean)
+    if firstTime == true then
+        print("Entity has entered room: ".. room.Name.. " for the first time")
+    else
+        print("Entity has entered room: ".. room.Name.. " again")
+    end
+end)
+
+
+entity:SetCallback("OnLookAt", function(lineOfSight: boolean)
+	if lineOfSight == true then
+		print("Player is looking at entity")
+	else
+		print("Player view is obstructed by something")
+	end
+end)
+
+
+entity:SetCallback("OnRebounding", function(startOfRebound: boolean)
+    if startOfRebound == true then
+        print("Entity has started rebounding")
+	else
+        print("Entity has finished rebounding")
+	end
+end)
+
+
+entity:SetCallback("OnDespawning", function()
+    print("Entity is despawning")
+    
+    task.spawn(StopEntityTheme)
+end)
+
+
+entity:SetCallback("OnDespawned", function()
+    print("Entity has despawned")
+    
+    -- [ÄOáº N CODE Há»¦Y ÄÃ“NG BÄ‚NG KHI BIáº¾N Máº¤T]
+    local player = game:GetService("Players").LocalPlayer
+    if player:FindFirstChild("ToggleFreezeCold") then
+        task.spawn(function()
+            player.ToggleFreezeCold:Fire(false) -- CHáº Y Láº I BÃŒNH THÆ¯á»œNG
+        end)
+    end
+    --------------------------------------
+    
+    local tween = game:GetService("TweenService")
+    tween:Create(game.Lighting.MainColorCorrection, TweenInfo.new(2), {TintColor = Color3.fromRGB(255, 255, 255)}):Play()
+end)
+
+
+entity:SetCallback("OnDamagePlayer", function(newHealth: number)
+	if newHealth <= 0 then
+		print("Entity has killed the player")
+	else
+		print("Entity has damaged the player")
+	end
+end)
+
+
+entity:Run(true)
