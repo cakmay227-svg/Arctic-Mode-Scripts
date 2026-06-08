@@ -1,0 +1,174 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Debris = game:GetService("Debris")
+local player = Players.LocalPlayer
+
+        -- KÃ­ch hoáº¡t script Frost-Mode duy nháº¥t 1 láº§n
+        local TOOL_ID = "rbxassetid://79826826734015"
+local ANIM_ID = "rbxassetid://100296215597460"
+local ICON_ID = "rbxassetid://134167016448283" 
+local DRINK_SOUND_ID = "rbxassetid://106891464521315" 
+
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local Debris = game:GetService("Debris")
+local Lighting = game:GetService("Lighting")
+
+local player = game:GetService("Players").LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local rootPart = character:WaitForChild("HumanoidRootPart")
+local camera = workspace.CurrentCamera
+
+-- --- HÀM TẢI VÀ PHÁT ÂM THANH CUSTOM TỪ GITHUB ---
+local function GitAud(soundlink, filename)
+    local url = soundlink
+    local FileName = filename
+    if not isfile(FileName..".mp3") then
+        writefile(FileName..".mp3", game:HttpGet(url))
+    end
+    return (getcustomasset or getsynasset)(FileName..".mp3")
+end
+
+local function PlayNongQuaSound()
+    local link = "https://github.com/vuivuiviu2/Frost-Mode/raw/refs/heads/main/nongquaaaaa.mp3"
+    local soundId = GitAud(link, "nong_qua")
+    
+    local sound = Instance.new("Sound")
+    sound.SoundId = soundId
+    sound.Parent = rootPart 
+    sound.Volume = 3 
+    sound.Looped = false
+    sound:Play()
+    
+    -- Tạo hiệu ứng màn hình cam lè bằng ColorCorrection chính xác
+    local cc = Instance.new("ColorCorrectionEffect")
+    cc.TintColor = Color3.fromRGB(255, 255, 255)
+    cc.Saturation = 0
+    cc.Parent = Lighting
+    
+    -- Fade màu cam lè rực rỡ siêu mượt (0.3 giây)
+    TweenService:Create(cc, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        TintColor = Color3.fromRGB(255, 110, 20), 
+        Saturation = 1.5 
+    }):Play()
+    
+    -- Hiệu ứng rung camera liên tục bằng RenderStepped mượt mà
+    local connection
+    local shakeIntensity = 3.5
+    connection = RunService.RenderStepped:Connect(function()
+        if not sound.Playing then return end
+        local x = (math.random() - 0.5) * shakeIntensity
+        local y = (math.random() - 0.5) * shakeIntensity
+        local z = (math.random() - 0.5) * shakeIntensity
+        camera.CFrame = camera.CFrame * CFrame.Angles(math.rad(x), math.rad(y), math.rad(z))
+    end)
+    
+    -- Khi âm thanh chạy hết thì dọn dẹp và kết thúc hiệu ứng
+    sound.Ended:Connect(function()
+        if connection then connection:Disconnect() end
+        
+        -- Fade out hiệu ứng màn hình về lại bình thường mượt mà (0.5 giây)
+        local fadeOut = TweenService:Create(cc, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+            TintColor = Color3.fromRGB(255, 255, 255),
+            Saturation = 0
+        })
+        fadeOut:Play()
+        fadeOut.Completed:Connect(function()
+            cc:Destroy()
+            sound:Destroy()
+        end)
+    end)
+end
+
+-- --- ANIMATION & LOGIC ---
+local holdAnim = Instance.new("Animation")
+holdAnim.AnimationId = ANIM_ID
+
+local function getCola()
+    local success, objects = pcall(function() return game:GetObjects(TOOL_ID) end)
+    if not (success and objects[1]) then return end
+    local tool = objects[1]:IsA("Tool") and objects[1] or objects[1]:FindFirstChildOfClass("Tool")
+    if not tool then return end
+    
+    tool.TextureId = ICON_ID
+    tool.Parent = player:FindFirstChildOfClass("Backpack")
+    
+    -- Khi bình thường cầm trên tay, dịch Grip qua bên trái để dễ thấy hơn
+    tool.Grip = CFrame.new(0.6, 0, 0.2) 
+    
+    -- Thu nhỏ trái ớt lại gấp 1.5 lần & Tắt va chạm để chui khe hẹp
+    local scaleFactor = 1 / 1.5
+    for _, part in pairs(tool:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = false
+            part.Size = part.Size * scaleFactor
+            
+            for _, joint in pairs(part:GetChildren()) do
+                if joint:IsA("JointInstance") or joint:IsA("Weld") then
+                    joint.C0 = joint.C0 + (joint.C0.Position * (scaleFactor - 1))
+                    joint.C1 = joint.C1 + (joint.C1.Position * (scaleFactor - 1))
+                end
+            end
+        end
+    end
+    
+    local currentAnimTrack = nil
+    
+    tool.Equipped:Connect(function()
+        local animator = humanoid:FindFirstChildOfClass("Animator") or humanoid
+        currentAnimTrack = animator:LoadAnimation(holdAnim)
+        currentAnimTrack.Priority = Enum.AnimationPriority.Action
+        currentAnimTrack:Play()
+    end)
+    
+    tool.Unequipped:Connect(function()
+        if currentAnimTrack then currentAnimTrack:Stop() end
+    end)
+
+    local isDrinking = false
+    tool.Activated:Connect(function()
+        if isDrinking then return end
+        isDrinking = true
+
+        -- Đưa lên miệng ăn nhanh mượt (0.15 giây)
+        local drinkingGrip = CFrame.new(2, -1.5, 1.6) * CFrame.Angles(math.rad(-90), 0, 0)
+        TweenService:Create(tool, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Grip = drinkingGrip}):Play()
+        
+        local ds = Instance.new("Sound", tool.Handle or tool)
+        ds.SoundId = DRINK_SOUND_ID
+        ds.Volume = 4 
+        ds:Play()
+
+        task.wait(0.4) 
+        
+        if currentAnimTrack then currentAnimTrack:Stop() end
+        tool:Destroy()
+        isDrinking = false
+        
+        -- Kích hoạt âm thanh và hiệu ứng cay nóng cùng lúc
+        task.spawn(PlayNongQuaSound)
+        
+        -- THÊM VÀO KHI ĂN XONG: LỆNH GIẢM LẠNH LIÊN TỤC TRONG 5 GIÂY (MỖI GIÂY -10%)
+        if player:FindFirstChild("ReduceCold") then
+            task.spawn(function()
+                for i = 1, 5 do
+                    player.ReduceCold:Fire(10) -- Mỗi giây giảm đúng 10%
+                    task.wait(1) -- Chờ đúng 1 giây trước khi giảm tiếp lần sau
+                end
+            end)
+        end
+        
+        -- ĐÃ CẬP NHẬT: Trừ 10 máu chia đều làm 4 lần (mỗi lần 2.5 HP cách nhau 0.9 giây)
+        task.spawn(function()
+            for i = 1, 4 do
+                task.wait(0.9)
+                if humanoid and humanoid.Health > 0 then
+                    humanoid.Health = math.max(0, humanoid.Health - 2.5)
+                end
+            end
+        end)
+    end)
+end
+
+getCola()
