@@ -1,0 +1,359 @@
+local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
+local SoundService = game:GetService("SoundService")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local currentRooms = workspace:WaitForChild("CurrentRooms")
+
+local killedByTrap = false
+
+local function OnDead()
+	game.Players.LocalPlayer.Character.Humanoid.Health = 0
+        game.ReplicatedStorage.GameStats['Player_' .. game.Players.LocalPlayer.Name].Total.DeathCause.Value = 'Black Ice'
+end
+
+local LocalPlayer = Players.LocalPlayer
+
+
+local MODEL_ID = "rbxassetid://140155446689375"
+local ANIMATION_ID = "rbxassetid://10954733643"
+
+
+local SOUND_ID_1 = "rbxassetid://127173765486423"
+local SOUND_ID_2 = "rbxassetid://81986730845735"
+
+
+local isFirstRoom = true
+
+
+local function loadModelFromId(assetPath)
+    local success, result = pcall(function()
+        return game:GetObjects(assetPath)
+    end)
+    
+    if success and result and #result > 0 then
+        return result[1]
+    end
+    return nil
+end
+
+
+local function getRandomPosOnFloor(floor)
+    local floorSize = floor.Size
+    local limitX = floorSize.X / 2 - 4
+    local limitZ = floorSize.Z / 2 - 4
+    
+    local randomX = (limitX <= 0) and math.random(-floorSize.X / 2, floorSize.X / 2) or math.random(-limitX, limitX)
+    local randomZ = (limitZ <= 0) and math.random(-floorSize.Z / 2, floorSize.Z / 2) or math.random(-limitZ, limitZ)
+    
+    local posY = (floorSize.Y / 2) + 0.21
+    return Vector3.new(randomX, posY, randomZ)
+end
+
+
+local function handleTrapTrigger(trapModel)
+    local character = LocalPlayer.Character
+    if not character then return end
+    
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoid or humanoid.Health <= 0 or not rootPart then return end
+    
+    if trapModel:GetAttribute("Triggered") then return end
+    trapModel:SetAttribute("Triggered", true)
+    
+    humanoid.Health = math.max(0, humanoid.Health - 10)
+
+if humanoid.Health <= 0 and not killedByTrap then
+	killedByTrap = true
+	OnDead()
+end
+    
+    local sound1 = Instance.new("Sound")
+    sound1.SoundId = SOUND_ID_1
+    sound1.Volume = 1
+    sound1.Parent = SoundService
+    sound1:Play()
+    
+    local sound2 = Instance.new("Sound")
+    sound2.SoundId = SOUND_ID_2
+    sound2.Volume = 1
+    sound2.Parent = SoundService
+    sound2:Play()
+    
+    sound1.Ended:Connect(function() sound1:Destroy() end)
+    sound2.Ended:Connect(function() sound2:Destroy() end)
+    
+    local currentPivot = trapModel:GetPivot()
+    local hitbox = trapModel:FindFirstChild("TrapHitbox")
+    local floorWeld = hitbox and hitbox:FindFirstChildOfClass("WeldConstraint")
+    
+    if floorWeld then floorWeld.Enabled = false end
+
+
+    local tweenInfoIn = TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    
+    for _, part in pairs(trapModel:GetDescendants()) do
+        if part:IsA("MeshPart") and part.Name == "gai" then
+            local targetSize = Vector3.new(part.Size.X, 2.4, part.Size.Z)
+            TweenService:Create(part, tweenInfoIn, {Size = targetSize}):Play()
+        end
+    end
+    
+    local pivotPart = trapModel.PrimaryPart or trapModel:FindFirstChildWhichIsA("BasePart")
+    if pivotPart then
+        local targetCFrame = currentPivot * CFrame.new(0, 0.9, 0)
+        task.spawn(function()
+            local elapsed = 0
+            while elapsed < 0.15 do
+                elapsed = elapsed + task.wait()
+                trapModel:PivotTo(currentPivot:Lerp(targetCFrame, elapsed / 0.15))
+            end
+            trapModel:PivotTo(targetCFrame)
+            if floorWeld then floorWeld.Enabled = true end 
+        end)
+    end
+    
+    local baseSpeed = humanoid.WalkSpeed
+local baseAutoRotate = humanoid.AutoRotate
+
+local stunEnded = false
+
+local camera = workspace.CurrentCamera
+local camConnection
+local head = character:FindFirstChild("Head")
+local baseCamType = camera.CameraType
+local baseCamSubject = camera.CameraSubject
+
+local wantedSpeed = 0
+humanoid.WalkSpeed = 0
+humanoid.JumpPower = 0
+    
+    local lockedRotation = rootPart.CFrame - rootPart.Position
+    humanoid.AutoRotate = false
+    
+    camera.CameraType = Enum.CameraType.Scriptable
+
+camConnection = RunService.RenderStepped:Connect(function()
+    if character and humanoid and humanoid.Health > 0 then
+        local headPart = character:FindFirstChild("Head")
+        if headPart then
+            -- camera bám theo head, hơi lùi ra sau tí cho dễ nhìn
+            local camOffset = CFrame.new(0, 0.2, 1.2)
+            camera.CFrame = headPart.CFrame * camOffset
+        end
+    end
+end)
+    
+    local speedConnection
+    local rotateConnection
+
+speedConnection = RunService.Heartbeat:Connect(function()
+	if humanoid and humanoid.Parent and humanoid.Health > 0 and not stunEnded then
+		
+		-- anti speed override detect
+		if humanoid.WalkSpeed ~= wantedSpeed then
+			humanoid.WalkSpeed = wantedSpeed
+		end
+	end
+end)
+    
+    rotateConnection = RunService.RenderStepped:Connect(function()
+        if character and rootPart and humanoid and humanoid.Health > 0 then
+            rootPart.CFrame = CFrame.new(rootPart.Position) * lockedRotation
+        end
+    end)
+    
+    local trapAnimTrack = nil
+    local animator = humanoid:FindFirstChildOfClass("Animator")
+    if animator then
+        local animation = Instance.new("Animation")
+        animation.AnimationId = ANIMATION_ID
+        
+        local success, track = pcall(function()
+            return animator:LoadAnimation(animation)
+        end)
+        
+        if success and track then
+            trapAnimTrack = track
+            trapAnimTrack:Play()
+        end
+    end
+    
+    task.wait(7.33)
+
+stunEnded = true
+    
+    if speedConnection then speedConnection:Disconnect() end
+    if rotateConnection then rotateConnection:Disconnect() end
+    if camConnection then camConnection:Disconnect() end
+
+if camera then
+    camera.CameraType = baseCamType or Enum.CameraType.Custom
+    camera.CameraSubject = humanoid
+end
+    
+    if humanoid and humanoid.Parent then
+        humanoid.AutoRotate = baseAutoRotate
+    end
+    
+    if floorWeld then floorWeld.Enabled = false end
+    
+    local tweenInfoOut = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+    
+    for _, part in pairs(trapModel:GetDescendants()) do
+        if part:IsA("MeshPart") and part.Name == "gai" then
+            local returnSize = Vector3.new(part.Size.X, 0.6, part.Size.Z)
+            TweenService:Create(part, tweenInfoOut, {Size = returnSize}):Play()
+        end
+    end
+    
+    task.spawn(function()
+        local elapsed = 0
+        local nowCFrame = trapModel:GetPivot()
+        while elapsed < 0.3 do
+            elapsed = elapsed + task.wait()
+            trapModel:PivotTo(nowCFrame:Lerp(currentPivot, elapsed / 0.3))
+        end
+        trapModel:PivotTo(currentPivot)
+        if floorWeld then floorWeld.Enabled = true end 
+    end)
+    
+    if trapAnimTrack then
+        trapAnimTrack:Stop()
+    end
+    
+    if humanoid and humanoid.Parent and humanoid.Health > 0 then
+        local slowedSpeed = baseSpeed * (1 - 0.5)
+
+wantedSpeed = slowedSpeed
+humanoid.WalkSpeed = slowedSpeed
+        
+        task.wait(10)
+        
+        if humanoid and humanoid.Parent and humanoid.Health > 0 then
+            humanoid.WalkSpeed = baseSpeed
+        end
+    end
+end
+
+
+local function spawnModelsOnFloor(floor)
+    local shouldSpawn = false
+    
+    if isFirstRoom then
+        shouldSpawn = true
+        isFirstRoom = false
+    else
+        if math.random(1, 5) == 1 then
+            shouldSpawn = true
+        end
+    end
+
+
+    if not shouldSpawn then return end
+
+
+    local modelCount = (math.random(1, 100) <= 50) and 1 or 2
+    local spawnedPositions = {}
+
+
+    for i = 1, modelCount do
+        local newModel = loadModelFromId(MODEL_ID)
+        if not newModel then continue end
+        
+        newModel.Name = "ICE_TRAP_" .. i
+        
+        for _, part in pairs(newModel:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+                part.CanQuery = false
+                part.CanTouch = false
+                
+                if part.Name == "gai" and part:IsA("MeshPart") then
+                    part.Size = Vector3.new(part.Size.X, 0.6, part.Size.Z)
+                end
+            end
+        end
+        
+        local localPos
+        if i == 1 then
+            localPos = getRandomPosOnFloor(floor)
+        else
+            local attempts = 0
+            while true do
+                attempts = attempts + 1
+                local tempPos = getRandomPosOnFloor(floor)
+                if (tempPos - spawnedPositions[1]).Magnitude >= 20 or attempts > 30 then
+                    localPos = tempPos
+                    break
+                end
+            end
+        end
+        
+        table.insert(spawnedPositions, localPos)
+        newModel.Parent = floor
+        
+        local randomRotationY = math.rad(math.random(0, 360))
+        newModel:PivotTo(floor.CFrame * CFrame.new(localPos) * CFrame.Angles(0, randomRotationY, 0))
+        
+        local hitbox = Instance.new("Part")
+        hitbox.Name = "TrapHitbox"
+        hitbox.Size = Vector3.new(0.15, 5, 0.15)
+        
+        hitbox.Transparency = 1 
+        hitbox.CanCollide = false 
+        hitbox.CanQuery = false 
+        hitbox.CanTouch = true 
+        hitbox.Anchored = false 
+        hitbox.Parent = newModel
+        
+        hitbox.CFrame = newModel:GetPivot() * CFrame.new(0, (5 / 2), 0)
+        
+        local weld = Instance.new("WeldConstraint")
+        weld.Part0 = floor 
+        weld.Part1 = hitbox
+        weld.Parent = hitbox
+        
+        local debugHighlight = Instance.new("Highlight")
+        debugHighlight.Name = "DebugHitboxHighlight"
+        debugHighlight.FillColor = Color3.fromRGB(255, 0, 0) 
+        debugHighlight.OutlineColor = Color3.fromRGB(255, 255, 0) 
+        debugHighlight.FillTransparency = 0.4 
+        debugHighlight.OutlineTransparency = 0
+        debugHighlight.Adornee = hitbox 
+        debugHighlight.Parent = hitbox
+        
+        hitbox.Touched:Connect(function(hit)
+            local char = LocalPlayer.Character
+            if char and hit:IsDescendantOf(char) then
+                handleTrapTrigger(newModel)
+            end
+        end)
+    end
+end
+
+
+local function onRoomAdded(room)
+    task.wait(1)
+    local floor = room:FindFirstChild("Floor") or room:FindFirstChild("Base")
+    
+    if floor and floor:IsA("BasePart") then
+        spawnModelsOnFloor(floor)
+    else
+        for _, obj in pairs(room:GetDescendants()) do
+            if obj.Name == "Floor" and obj:IsA("BasePart") then
+                spawnModelsOnFloor(obj)
+                break
+            end
+        end
+    end
+end
+
+
+for _, room in pairs(currentRooms:GetChildren()) do
+    onRoomAdded(room)
+end
+
+
+currentRooms.ChildAdded:Connect(onRoomAdded)
