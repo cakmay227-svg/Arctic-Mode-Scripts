@@ -1,0 +1,59 @@
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- 5 image id
+local IMAGE_IDS = {
+	"rbxassetid://80307133407442",
+	"rbxassetid://133718053229928",
+	"rbxassetid://88537017313842",
+	"rbxassetid://120641111296859",
+	"rbxassetid://107047535560578",
+}
+
+-- sound id (m thay nếu muốn)
+local SOUND_ID = "rbxassetid://135804355522741"
+
+local function showRandomImage()
+	-- GUI
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "FullScreenImage"
+	gui.IgnoreGuiInset = true
+	gui.ResetOnSpawn = false
+	gui.Parent = playerGui
+
+	local img = Instance.new("ImageLabel")
+	img.Size = UDim2.fromScale(1, 1)
+	img.Position = UDim2.fromScale(0, 0)
+	img.BackgroundTransparency = 1
+	img.ImageTransparency = 0
+	img.ScaleType = Enum.ScaleType.Stretch
+	img.Image = IMAGE_IDS[math.random(1, #IMAGE_IDS)]
+	img.Parent = gui
+
+	-- SOUND khi image hiện
+	local sound = Instance.new("Sound")
+	sound.SoundId = SOUND_ID
+	sound.Volume = 1
+	sound.Parent = img
+	sound:Play()
+
+	-- đợi 0.1s
+	task.wait(0.1)
+
+	-- fade out 3s
+	local tween = TweenService:Create(
+		img,
+		TweenInfo.new(3, Enum.EasingStyle.Linear),
+		{ImageTransparency = 1}
+	)
+
+	tween:Play()
+	tween.Completed:Wait()
+
+	gui:Destroy()
+end
+
+showRandomImage()
