@@ -1,0 +1,495 @@
+ local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local player = Players.LocalPlayer
+
+local DAMAGE_PER_TICK = 3
+local DAMAGE_INTERVAL = 0.33
+
+local SPAWN_SOUND_ID = "rbxassetid://111626546771757"
+local TELEPORT_SOUND_ID = "rbxassetid://122218831341898"
+
+local SOUND_VOLUME = 2
+
+local LOOK_THRESHOLD = 0.992
+
+local TELEPORT_MIN_DELAY = 4
+local TELEPORT_MAX_DELAY = 7
+
+local TELEPORT_MIN_DISTANCE = 10
+local TELEPORT_MAX_DISTANCE = 12
+
+local DAMAGE_SOUND_ID = "rbxassetid://137069306202776"
+local DAMAGE_SOUND_VOLUME = 1
+
+local damageSound = Instance.new("Sound")
+damageSound.SoundId = DAMAGE_SOUND_ID
+damageSound.Volume = 1
+damageSound.Parent = workspace
+
+local spawnSound = Instance.new("Sound")
+spawnSound.SoundId = SPAWN_SOUND_ID
+spawnSound.Volume = SOUND_VOLUME
+spawnSound.Parent = workspace
+spawnSound.RollOffMaxDistance = 200
+
+local teleportSound = Instance.new("Sound")
+teleportSound.SoundId = TELEPORT_SOUND_ID
+teleportSound.Volume = SOUND_VOLUME
+teleportSound.Parent = workspace
+teleportSound.RollOffMaxDistance = 150
+
+local TweenService = game:GetService("TweenService")
+
+local freezeGui = Instance.new("ScreenGui")
+freezeGui.Name = "FreezeEffect"
+freezeGui.IgnoreGuiInset = true
+freezeGui.ResetOnSpawn = false
+freezeGui.Parent = player:WaitForChild("PlayerGui")
+
+local freezeImage = Instance.new("ImageLabel")
+freezeImage.Size = UDim2.new(1, 0, 1, 0)
+freezeImage.BackgroundTransparency = 1
+freezeImage.Image = "rbxassetid://115573769674992"
+freezeImage.ImageTransparency = 1
+freezeImage.Parent = freezeGui
+freezeImage.ScaleType = Enum.ScaleType.Stretch
+
+local function playFreezeEffect()
+	freezeImage.ImageTransparency = 0
+
+	TweenService:Create(
+		freezeImage,
+		TweenInfo.new(0.5),
+		{
+			ImageTransparency = 1
+		}
+	):Play()
+end
+
+local function OnEntityKill()
+	game.Players.LocalPlayer.Character.Humanoid.Health = 0
+        game.ReplicatedStorage.GameStats['Player_' .. game.Players.LocalPlayer.Name].Total.DeathCause.Value = 'Gaze'
+end
+
+local objects = game:GetObjects("rbxassetid://118011807393810")
+
+local ENTITY_MODEL
+
+for _, v in ipairs(objects) do
+	if v:IsA("Model") then
+		ENTITY_MODEL = v
+		break
+	end
+end
+
+if not ENTITY_MODEL then
+	warn("KhÄ‚Â´ng tÄ‚Â¬m thÃ¡ÂºÂ¥y model")
+	return
+end
+
+local function getCharacter()
+	return player.Character or player.CharacterAdded:Wait()
+end
+
+local function getHumanoid()
+	local char = getCharacter()
+	return char:FindFirstChildOfClass("Humanoid")
+end
+
+local function getRoot()
+	local char = getCharacter()
+	return char:WaitForChild("HumanoidRootPart")
+end
+
+local function getCurrentRoom()
+	local current = ReplicatedStorage
+		:WaitForChild("GameData")
+		:WaitForChild("LatestRoom").Value
+
+	local rooms = workspace:WaitForChild("CurrentRooms")
+
+	for _, room in ipairs(rooms:GetChildren()) do
+		if tonumber(room.Name) == current then
+			return room
+		end
+	end
+end
+
+local function getRoomBounds(room)
+	local cf, size = room:GetBoundingBox()
+
+	local min = cf.Position - (size / 2)
+	local max = cf.Position + (size / 2)
+
+	return min, max
+end
+
+local function randomPointInRoom(room)
+	local character = getCharacter()
+	local root = character:WaitForChild("HumanoidRootPart")
+
+	local min, max = getRoomBounds(room)
+
+	local x = math.random() * (max.X - min.X) + min.X
+	local z = math.random() * (max.Z - min.Z) + min.Z
+
+	local y = root.Position.Y + 2
+
+	return Vector3.new(x, y, z)
+end
+
+local function teleportInFront(body)
+	local root = getRoot()
+
+	local distance = math.random(
+		TELEPORT_MIN_DISTANCE,
+		TELEPORT_MAX_DISTANCE
+	)
+
+	local offset =
+		root.CFrame.LookVector * distance
+
+	local pos =
+		root.Position + offset
+
+	pos = Vector3.new(
+		pos.X,
+		root.Position.Y + 2,
+		pos.Z
+	)
+
+teleportSound:Play()
+
+	body.CFrame = CFrame.new(pos)
+end
+
+local room = getCurrentRoom()
+
+if not room then
+	warn("KhÄ‚Â´ng tÄ‚Â¬m thÃ¡ÂºÂ¥y phÄ‚Â²ng")
+	return
+end
+
+local entity = ENTITY_MODEL:Clone()
+entity.Parent = workspace
+
+for _, v in ipairs(entity:GetDescendants()) do
+	if v:IsA("BasePart") then
+		v.Anchored = true
+		v.CanCollide = false
+	end
+end
+
+local body = entity:FindFirstChild("Body", true)
+
+if not body then
+	body = entity.PrimaryPart
+end
+
+if not body then
+	entity:Destroy()
+	return
+end
+
+local spawnPos = randomPointInRoom(room)
+
+if entity.PrimaryPart then
+	entity:SetPrimaryPartCFrame(CFrame.new(spawnPos))
+else
+	body.CFrame = CFrame.new(spawnPos)
+end
+
+spawnSound.Parent = body
+spawnSound:Play()
+teleportSound.Parent = body
+
+local active = true
+local lastDamage = 0
+local killed = false
+
+RunService.RenderStepped:Connect(function()
+
+	if not active then
+		return
+	end
+
+	local humanoid = getHumanoid()
+
+	if not humanoid then
+		return
+	end
+
+	if humanoid.Health <= 0 then
+		if not killed then
+			killed = true
+			OnEntityKill()
+		end
+
+		return
+	end
+
+	if not body or not body.Parent then
+		return
+	end
+
+	local camera = workspace.CurrentCamera
+
+	if not camera then
+		return
+	end
+
+	local camPos = camera.CFrame.Position
+
+	local lookVector = camera.CFrame.LookVector
+	local dir = (body.Position - camPos).Unit
+
+	local dot = lookVector:Dot(dir)
+
+	if dot >= LOOK_THRESHOLD then
+		if tick() - lastDamage >= DAMAGE_INTERVAL then
+			lastDamage = tick()
+
+			humanoid.Health = math.max(
+				0,
+				humanoid.Health - DAMAGE_PER_TICK
+			)
+			
+			currentCold = math.clamp(currentCold + 1, 0, MAX_COLD)
+			
+			task.spawn(function()
+			if getgenv()._SUB8_ALREADY_EXECUTED then
+    return
+end
+
+getgenv()._SUB8_ALREADY_EXECUTED = true
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local SoundService = game:GetService("SoundService")
+local Debris = game:GetService("Debris")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+local TEXT = "Agh, i should not look at it."
+
+-- GUI
+local gui = Instance.new("ScreenGui")
+gui.Name = "BottomCenterText"
+gui.IgnoreGuiInset = true
+gui.ResetOnSpawn = false
+gui.Parent = playerGui
+
+-- Holder chính
+local holder = Instance.new("Frame")
+holder.BackgroundTransparency = 1
+holder.AnchorPoint = Vector2.new(0.5, 0.5)
+
+-- Giữa màn hình nhưng thấp hơn chút
+holder.Position = UDim2.new(0.5, 0, 0.75, 0)
+
+holder.Size = UDim2.new(0, 800, 0, 120)
+holder.Parent = gui
+
+-- Layout dọc
+local holderLayout = Instance.new("UIListLayout")
+holderLayout.FillDirection = Enum.FillDirection.Vertical
+holderLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+holderLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+holderLayout.Parent = holder
+
+-- Sound tick
+local baseSound = Instance.new("Sound")
+baseSound.SoundId = "rbxassetid://0"
+baseSound.Volume = 0.7
+baseSound.Parent = SoundService
+
+local letters = {}
+
+-- Tạo dòng đầu
+local currentLine = Instance.new("Frame")
+currentLine.BackgroundTransparency = 1
+currentLine.Size = UDim2.new(1, 0, 0, 26)
+currentLine.Parent = holder
+
+local lineLayout = Instance.new("UIListLayout")
+lineLayout.FillDirection = Enum.FillDirection.Horizontal
+lineLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+lineLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+lineLayout.Parent = currentLine
+
+for i = 1, #TEXT do
+	local char = TEXT:sub(i, i)
+
+	-- Xuống dòng
+	if char == "\n" then
+		currentLine = Instance.new("Frame")
+		currentLine.BackgroundTransparency = 1
+		currentLine.Size = UDim2.new(1, 0, 0, 26)
+		currentLine.Parent = holder
+
+		local newLayout = Instance.new("UIListLayout")
+		newLayout.FillDirection = Enum.FillDirection.Horizontal
+		newLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		newLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+		newLayout.Parent = currentLine
+
+		continue
+	end
+
+	local letter = Instance.new("TextLabel")
+	letter.BackgroundTransparency = 1
+	letter.Text = char
+	letter.Font = Enum.Font.GothamBold
+
+	-- Text nhỏ hơn
+	letter.TextSize = 18
+
+	-- Gradient trắng -> xám
+	letter.TextColor3 = Color3.fromRGB(255,255,255)
+
+	local gradient = Instance.new("UIGradient")
+	gradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255,255,255)), -- trắng trên
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(150,150,150)) -- xám dưới
+	})
+	gradient.Rotation = 90
+	gradient.Parent = letter
+
+	letter.TextTransparency = 1
+	letter.TextStrokeTransparency = 1
+
+	letter.TextStrokeColor3 = Color3.fromRGB(0,0,0)
+
+	-- Spawn thấp hơn chút
+	letter.Position = UDim2.new(0, 0, 0, 10)
+
+	letter.Size = UDim2.new(0, 14, 0, 24)
+
+	letter.Parent = currentLine
+
+	table.insert(letters, letter)
+
+	-- Tick sound
+	local tick = baseSound:Clone()
+	tick.Parent = SoundService
+	tick:Play()
+	Debris:AddItem(tick, 2)
+
+	-- Animation spawn
+	TweenService:Create(
+		letter,
+		TweenInfo.new(
+			0.22,
+			Enum.EasingStyle.Back,
+			Enum.EasingDirection.Out
+		),
+		{
+			TextTransparency = 0,
+			TextStrokeTransparency = 0.65,
+			Position = UDim2.new(0, 0, 0, 0)
+		}
+	):Play()
+
+	-- Shake nhẹ
+	task.spawn(function()
+		task.wait(0.08)
+
+		for _ = 1, 3 do
+			letter.Rotation = math.random(-6, 6)
+
+			letter.Position = UDim2.new(
+				0,
+				math.random(-1, 1),
+				0,
+				math.random(-1, 1)
+			)
+
+			task.wait(0.02)
+		end
+
+		TweenService:Create(
+			letter,
+			TweenInfo.new(
+				0.08,
+				Enum.EasingStyle.Quad,
+				Enum.EasingDirection.Out
+			),
+			{
+				Rotation = 0,
+				Position = UDim2.new(0, 0, 0, 0)
+			}
+		):Play()
+	end)
+
+	task.wait(0.04)
+end
+
+-- Đợi 5s
+task.wait(5)
+
+-- Fade out
+for _, letter in ipairs(letters) do
+	TweenService:Create(
+		letter,
+		TweenInfo.new(
+			0.35,
+			Enum.EasingStyle.Quad,
+			Enum.EasingDirection.Out
+		),
+		{
+			TextTransparency = 1,
+			TextStrokeTransparency = 1,
+			Position = UDim2.new(0, 0, 0, -6),
+			Rotation = math.random(-4, 4)
+		}
+	):Play()
+end
+
+task.wait(0.4)
+
+gui:Destroy()
+end) 
+			
+			damageSound:Play()
+			playFreezeEffect()
+
+			if humanoid.Health <= 0 and not killed then
+				killed = true
+				OnEntityKill()
+			end
+		end
+	end
+end)
+
+task.spawn(function()
+
+	while active do
+		task.wait(math.random(
+			TELEPORT_MIN_DELAY,
+			TELEPORT_MAX_DELAY
+		))
+
+		if not active then
+			break
+		end
+
+		if body and body.Parent then
+			teleportInFront(body)
+		end
+	end
+end)
+
+task.spawn(function()
+
+	ReplicatedStorage.GameData
+		.LatestRoom.Changed:Wait()
+
+	active = false
+
+	if entity then
+		entity:Destroy()
+	end
+end)
