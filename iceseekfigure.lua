@@ -455,32 +455,12 @@ end)
 -- ROOM 50 FREEZE LOOP (NEW FEATURE)
 ------------------------------------------------
 local function applyRoom50Ice(model)
-    local parts = {}
-
     for _, v in ipairs(model:GetDescendants()) do
         if v:IsA("BasePart") then
-            table.insert(parts, v)
+            v.Material = Enum.Material.Ice
+            v.Color = v.Color -- GIỮ NGUYÊN COLOR, KHÔNG ĐỤNG
         elseif v:IsA("Light") then
             v:Destroy()
-        end
-    end
-
-    local countToApply = math.floor(#parts * 0.75)
-
-    -- shuffle
-    for i = #parts, 2, -1 do
-        local j = math.random(i)
-        parts[i], parts[j] = parts[j], parts[i]
-    end
-
-    for i = 1, countToApply do
-        local part = parts[i]
-        if part then
-            saveState(part)
-
-            local h, s, v = part.Color:ToHSV()
-            part.Color = Color3.fromHSV(0.55, 0.4, v) -- giữ brightness
-            part.Material = Enum.Material.Ice
         end
     end
 end
