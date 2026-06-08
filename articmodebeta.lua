@@ -55,6 +55,24 @@ local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
+local Players = game:GetService("Players")
+local ProximityPromptService = game:GetService("ProximityPromptService")
+
+local player = Players.LocalPlayer
+
+local character = player.Character or player.CharacterAdded:Wait()
+local hum = character:WaitForChild("Humanoid")
+
+local isUsingFireplace = false
+local animTrack = nil
+local activeFire = nil
+local originalWalkSpeed = hum.WalkSpeed
+
+local ANIMATIONS = {
+	"rbxassetid://18885101321",
+	"rbxassetid://18885098453",
+	"rbxassetid://18885095182"
+}
 
 -- [Lá»†NH DÃ™NG CHUNG] Giáº£m (sá»‘ dÆ°Æ¡ng) hoáº·c TÄƒng (sá»‘ Ã¢m)
 local ReduceColdEvent = player:FindFirstChild("ReduceCold") or Instance.new("BindableEvent")
@@ -203,13 +221,117 @@ local isNearFireplace = false
 local lastCheckNearTime = 0
 local CHECK_NEAR_INTERVAL = 0.1
 
+function stopFireplace(part, stopPrompt)
+	isUsingFireplace = false
+
+	if animTrack then
+		animTrack:Stop()
+		animTrack = nil
+	end
+
+	hum.WalkSpeed = originalWalkSpeed
+hum.JumpPower = 50
+
+	if stopPrompt then stopPrompt:Destroy() end
+
+	local prompt = part:FindFirstChild("FirePrompt")
+	if prompt then prompt.Enabled = true end
+end
+
+function startFireplace(part)
+	if isUsingFireplace then return end
+
+	isUsingFireplace = true
+	activeFire = part
+
+	local prompt = part:FindFirstChild("FirePrompt")
+	if prompt then prompt.Enabled = false end
+
+	originalWalkSpeed = hum.WalkSpeed
+	hum.WalkSpeed = 0
+
+	local anim = Instance.new("Animation")
+anim.AnimationId = ANIMATIONS[math.random(1,#ANIMATIONS)]
+
+animTrack = hum:LoadAnimation(anim)
+animTrack.Priority = Enum.AnimationPriority.Action
+animTrack.Looped = true
+animTrack:Play()
+
+local animate = character:FindFirstChild("Animate")
+if animate then
+	animate.Disabled = true
+end
+
+isUsingFireplace = true
+
+task.spawn(function()
+	while isUsingFireplace do
+		if hum then
+			hum.WalkSpeed = 0
+			hum.JumpPower = 0
+		end
+		task.wait()
+	end
+end)
+
+	task.spawn(function()
+		while isUsingFireplace do
+			currentCold = math.max(0, currentCold - 1.5)
+			task.wait(0.2)
+		end
+	end)
+
+	createStopPrompt(part)
+end
+
+function createStopPrompt(part)
+	if part:FindFirstChild("StopFirePrompt") then return end
+
+	local p = Instance.new("ProximityPrompt")
+	p.Name = "StopFirePrompt"
+	p.ActionText = "Stop Warming"
+	p.ObjectText = "Fireplace"
+	p.HoldDuration = 0
+	p.MaxActivationDistance = 10
+	p.RequiresLineOfSight = false
+	p.Parent = part
+
+	p.Triggered:Connect(function(plr)
+		if plr ~= player then return end
+		stopFireplace(part, p)
+	end)
+end
+
+function createFirePrompt(model, part)
+	if part:FindFirstChild("FirePrompt") then return end
+
+	local p = Instance.new("ProximityPrompt")
+	p.Name = "FirePrompt"
+	p.ActionText = "Warm Up"
+	p.ObjectText = "Fireplace"
+	p.HoldDuration = 0
+	p.MaxActivationDistance = 10
+	p.RequiresLineOfSight = false
+	p.Parent = part
+
+	p.Triggered:Connect(function(plr)
+		if plr ~= player then return end
+		if isUsingFireplace then return end
+		startFireplace(part)
+	end)
+end
+
 local function updateFireplaceCache()
     table.clear(cachedFireplaces)
     for _, obj in pairs(Workspace:GetDescendants()) do
         if obj:IsA("Model") and obj.Name == "Fireplace_Logs" then
-            local part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
-            if part then table.insert(cachedFireplaces, part) end
-        end
+	local part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+	if part and not part:FindFirstChild("FirePrompt") then
+		table.insert(cachedFireplaces, part)
+		createFirePrompt(obj, part)
+	end
+end
     end
 end
 
@@ -247,7 +369,7 @@ RunService.Heartbeat:Connect(function(dt)
             end
         end
         
-        if isNearFireplace then
+        if isNearFireplace and not isUsingFireplace then
             if currentCold > 0 then
                 currentCold = math.max(0, currentCold - (FIREPLACE_DECREASE_RATE * dt))
             end
