@@ -1,0 +1,508 @@
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local SoundService = game:GetService("SoundService")
+local RunService = game:GetService("RunService")
+
+local Camera = workspace.CurrentCamera
+
+local function applyRedTintKeepBrightness(model)
+	for _, obj in ipairs(model:GetDescendants()) do
+
+		-- Particle / Trail / Beam (tất cả dạng effect có Color)
+		if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") then
+			local c = obj.Color
+
+			-- giữ brightness nhưng ép hue sang đỏ
+			obj.Color = ColorSequence.new(Color3.new(1, 0, 0))
+
+		-- Light objects
+		elseif obj:IsA("PointLight") or obj:IsA("SpotLight") or obj:IsA("SurfaceLight") then
+			local old = obj.Color
+
+			-- giữ brightness (luminance), đổi hue sang đỏ
+			local brightness = old.R * 0.3 + old.G * 0.59 + old.B * 0.11
+			obj.Color = Color3.new(brightness, 0, 0)
+		end
+
+	end
+end
+
+local function applySoundDistortion(model)
+	for _, obj in ipairs(model:GetDescendants()) do
+
+		if obj:IsA("Sound") then
+
+			-- tránh duplicate
+			if obj:FindFirstChild("DistortFX") then
+				continue
+			end
+
+			-- 1) Distortion effect
+			local dist = Instance.new("DistortionSoundEffect")
+			dist.Name = "DistortFX"
+			dist.Level = 0.6 -- mạnh vừa đủ (0 - 1)
+			dist.Parent = obj
+
+			-- 2) Equalizer để làm méo + nặng hơn
+			local eq = Instance.new("EqualizerSoundEffect")
+			eq.Name = "DistortEQ"
+			eq.LowGain = -20
+			eq.MidGain = 5
+			eq.HighGain = -10
+			eq.Parent = obj
+
+		end
+	end
+end
+
+local function heavyImpactShake()
+
+	local duration = 1
+	local start = tick()
+
+	local connection
+
+	connection = RunService.RenderStepped:Connect(function()
+
+		local elapsed = tick() - start
+
+		if elapsed >= duration then
+			connection:Disconnect()
+			return
+		end
+
+		local power = (1 - (elapsed / duration)) * 2.5
+
+		local offset =
+			Vector3.new(
+				(math.random() - 0.5) * power,
+				(math.random() - 0.5) * power,
+				(math.random() - 0.5) * power
+			)
+
+		Camera.CFrame =
+			Camera.CFrame * CFrame.new(offset)
+
+	end)
+end
+
+local CurrentRooms = workspace:WaitForChild("CurrentRooms")
+
+local ICE_SIZE = Vector3.new(10, 2, 10)
+local spawnSound = nil
+
+local function createIce(pos)
+
+	task.delay(math.random() * 1.5, function()
+
+		local ice = Instance.new("Part")
+
+		local sizeX = math.random(2, 5)
+		local sizeY = math.random(3, 6)
+		local sizeZ = math.random(2, 5)
+
+		ice.Size = Vector3.new(sizeX, sizeY, sizeZ)
+
+		ice.Name = "ShiverIce"
+		ice.Anchored = true
+		ice.CanCollide = false
+		ice.Material = Enum.Material.Ice
+		ice.Color = Color3.fromRGB(255, 79, 79)
+		ice.Transparency = 0.15
+
+		ice.Parent = workspace
+
+		local rot = CFrame.Angles(
+			math.rad(math.random(-25,25)),
+			math.rad(math.random(0,360)),
+			math.rad(math.random(-25,25))
+		)
+
+		local finalPos = pos + Vector3.new(0, (sizeY/2)-math.random(1,2), 0)
+		local finalCFrame = CFrame.new(finalPos) * rot
+		local startCFrame = finalCFrame * CFrame.new(0, -sizeY - 4, 0)
+
+		ice.CFrame = startCFrame
+
+		-- tween lên
+		local tween = TweenService:Create(
+			ice,
+			TweenInfo.new(math.random(40,70)/100, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+			{CFrame = finalCFrame}
+		)
+
+		tween:Play()
+
+		-- ===== FIX SINK LOGIC =====
+		task.delay(30 + math.random()*2.5, function()
+
+			if not ice or not ice.Parent then return end
+
+			local sinkTween = TweenService:Create(
+				ice,
+				TweenInfo.new(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+				{
+					CFrame = ice.CFrame * CFrame.new(0, -sizeY - math.random(4,8), 0)
+				}
+			)
+
+			local sinkSound = Instance.new("Sound")
+			sinkSound.SoundId = "rbxassetid://132186460767524"
+			sinkSound.Volume = 1
+			sinkSound.Parent = ice
+			sinkSound:Play()
+
+			sinkTween:Play()
+
+			sinkTween.Completed:Connect(function()
+				if ice then
+					ice:Destroy()
+				end
+			end)
+
+		end)
+	end)
+end
+
+local spawnedIceRooms = {}
+
+local function spawnIceOnFloors(room)
+	if spawnedIceRooms[room] then
+		return
+	end
+
+	spawnedIceRooms[room] = true
+
+	for _, obj in ipairs(room:GetDescendants()) do
+		if obj:IsA("BasePart") and obj.Name == "Floor" then
+
+			local amount = math.random(6, 8)
+
+			for i = 1, amount do
+				local size = obj.Size
+				local cf = obj.CFrame
+
+				local x = (math.random() - 0.5) * (size.X - 8)
+				local z = (math.random() - 0.5) * (size.Z - 8)
+
+				local pos = (
+					cf *
+					CFrame.new(x, size.Y / 2 + 0.2, z)
+				).Position
+
+				createIce(pos)
+			end
+		end
+	end
+end
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local SoundService = game:GetService("SoundService")
+
+local LocalPlayer = Players.LocalPlayer
+
+local FREEZE_TIME_MIN = 6
+local FREEZE_TIME_MAX = 8
+
+local FREEZE_IMAGE = "rbxassetid://115573769674992"
+local FREEZE_SOUND = "rbxassetid://132186460767524"
+
+local freezing = false
+
+local freezeConnection = nil
+
+local function freezePlayer()
+	if freezing then return end
+	freezing = true
+
+	local char = LocalPlayer.Character
+	if not char then
+		freezing = false
+		return
+	end
+
+	local hum = char:FindFirstChildWhichIsA("Humanoid")
+	if not hum then
+		freezing = false
+		return
+	end
+
+	local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+	if not playerGui then
+		freezing = false
+		return
+	end
+
+	local oldSpeed = hum.WalkSpeed
+	local oldJump = hum.JumpPower
+
+	if freezeConnection then
+		freezeConnection:Disconnect()
+	end
+
+	freezeConnection = RunService.RenderStepped:Connect(function()
+		if hum and hum.Parent then
+			hum.WalkSpeed = 0
+			hum.JumpPower = 0
+		end
+	end)
+
+	local sound = Instance.new("Sound")
+	sound.SoundId = FREEZE_SOUND
+	sound.Volume = 3
+	sound.Parent = SoundService
+	sound:Play()
+
+	game.Debris:AddItem(sound, 10)
+	
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "FreezeEffect"
+	gui.IgnoreGuiInset = true
+	gui.ResetOnSpawn = false
+
+	local image = Instance.new("ImageLabel")
+	image.BackgroundTransparency = 1
+	image.Size = UDim2.new(1,0,1,0)
+	image.Position = UDim2.new(0,0,0,0)
+
+image.ImageColor3 = Color3.fromRGB(255, 0, 0) -- đỏ
+
+	image.Image = FREEZE_IMAGE
+	image.ImageTransparency = 0
+
+	image.Parent = gui
+	gui.Parent = playerGui
+
+	local freezeTime = math.random(FREEZE_TIME_MIN, FREEZE_TIME_MAX)
+
+	task.wait(freezeTime)
+
+	if freezeConnection then
+		freezeConnection:Disconnect()
+		freezeConnection = nil
+	end
+
+	if hum and hum.Parent then
+		hum.WalkSpeed = oldSpeed
+		hum.JumpPower = oldJump
+	end
+
+	local tween = TweenService:Create(
+		image,
+		TweenInfo.new(4, Enum.EasingStyle.Linear),
+		{
+			ImageTransparency = 1
+		}
+	)
+
+	tween:Play()
+	
+	-- sau 30s băng sẽ chui xuống đất
+		task.delay(30 + math.random() * 2.5, function()
+
+			if not ice or not ice.Parent then
+				return
+			end
+
+			local sinkOffset =
+				Vector3.new(
+					0,
+					-sizeY - math.random(4, 8),
+					0
+				)
+
+			local sinkTween = TweenService:Create(
+				ice,
+				TweenInfo.new(
+					1.5,
+					Enum.EasingStyle.Quad,
+					Enum.EasingDirection.In
+				),
+				{
+					CFrame = ice.CFrame + sinkOffset
+				}
+			)
+			
+			local sinkSound = Instance.new("Sound")
+
+			sinkSound.SoundId = "rbxassetid://132186460767524"
+			sinkSound.Volume = 1
+
+			sinkSound.RollOffMaxDistance = 45
+			sinkSound.RollOffMinDistance = 5
+
+			sinkSound.PlaybackSpeed =
+				math.random(90, 110) / 100
+
+			sinkSound.Parent = ice
+
+			task.wait(math.random() * 0.4)
+
+			sinkSound:Play()
+
+			sinkTween:Play()
+
+			sinkTween.Completed:Connect(function()
+				if ice then
+					ice:Destroy()
+				end
+			end)
+
+		end)
+
+	tween.Completed:Wait()
+
+	gui:Destroy()
+
+	freezing = false
+end
+
+---====== Load spawner ======---
+
+local spawner = loadstring(game:HttpGet("https://raw.githubusercontent.com/RegularVynixu/Utilities/main/Doors/Entity%20Spawner/V2/Source.lua"))()
+
+---====== Create entity ======---
+
+local entity = spawner.Create({
+	Entity = {
+		Name = "Super Shiver",
+		Asset = "rbxassetid://117273463392740",
+		HeightOffset = 2
+	},
+	Lights = {
+		Flicker = {
+			Enabled = true,
+			Duration = 10
+		},
+		Shatter = true,
+		Repair = false
+	},
+	Earthquake = {
+		Enabled = true
+	},
+	CameraShake = {
+		Enabled = true,
+		Range = 200,
+		Values = {30, 20, 5, 1} -- Magnitude, Roughness, FadeIn, FadeOut
+	},
+	Movement = {
+		Speed = 250,
+		Delay = 10,
+		Reversed = false
+	},
+	Rebounding = {
+		Enabled = true,
+		Type = "Ambush", -- "Blitz"
+		Min = 2,
+		Max = 3,
+		Delay = 1
+	},
+	Damage = {
+		Enabled = true,
+		Range = 40,
+		Amount = 125
+	},
+	Crucifixion = {
+		Enabled = false,
+		Range = 40,
+		Resist = true,
+		Break = true
+	},
+	Death = {
+		Type = "Guiding", -- "Curious"
+		Hints = {"You died to an entity called Darkness", "He is not too fast but he can react very fast", "Try to hide as fast as you can", "Good luck."},
+		Cause = "Super Shiver"
+	}
+})
+
+---====== Debug entity ======---
+
+entity:SetCallback("OnSpawned", function()
+	print("Entity has spawned")
+
+	local model = entity.Entity and entity.Entity.Model or workspace:FindFirstChild("Super Shiver")
+
+	if model then
+		applyRedTintKeepBrightness(model)
+		applySoundDistortion(model) -- 👈 thêm dòng này
+	end
+
+	spawnSound = Instance.new("Sound")
+	spawnSound.Parent = workspace
+	spawnSound.SoundId = "rbxassetid://126869161363248"
+	spawnSound.Volume = 3
+	spawnSound:Play()
+
+	task.spawn(function() 
+		heavyImpactShake()
+	end)
+end)
+
+entity:SetCallback("OnStartMoving", function()
+    print("Entity has started moving")
+end)
+
+entity:SetCallback("OnEnterRoom", function(room, firstTime)
+ spawnIceOnFloors(room)
+
+   if firstTime == true then
+        print("Entity has entered room: ".. room.Name.. " for the first time")
+    else
+        print("Entity has entered room: ".. room.Name.. " again")
+    end
+end)
+
+entity:SetCallback("OnLookAt", function(lineOfSight)
+	if lineOfSight == true then
+		print("Player is looking at entity")
+	else
+		print("Player view is obstructed by something")
+	end
+end)
+
+entity:SetCallback("OnRebounding", function(startOfRebound)
+    if startOfRebound == true then
+        print("Entity has started rebounding")
+	else
+        print("Entity has finished rebounding")
+	end
+end)
+
+entity:SetCallback("OnDespawning", function()
+    print("Entity is despawning")
+    if spawnSound then
+	spawnSound:Destroy()
+	spawnSound = nil
+end
+end)
+
+entity:SetCallback("OnDespawned", function()
+    print("Entity has despawned")
+end)
+
+entity:SetCallback("OnDamagePlayer", function(newHealth)
+	if newHealth == 0 then
+		print("Entity has killed the player")
+	else
+		print("Entity has damaged the player")
+		task.spawn(function() 
+	freezePlayer() 
+	end) 
+	end
+end)
+
+--[[
+
+DEVELOPER NOTE:
+By overwriting 'CrucifixionOverwrite' the default crucifixion callback will be replaced with your custom callback.
+
+entity:SetCallback("CrucifixionOverwrite", function()
+    print("Custom crucifixion callback")
+end)
+
+]]--
+
+---====== Run entity ======---
+
+entity:Run()
