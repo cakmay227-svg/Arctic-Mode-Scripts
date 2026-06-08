@@ -508,8 +508,25 @@ local function FindPlayer(name)
 	if not name then return nil end
 	name = string.lower(name)
 
-	for _, plr in ipairs(Players:GetPlayers()) do
+	local players = Players:GetPlayers()
+
+	-- 1. exact match trước
+	for _, plr in ipairs(players) do
 		if string.lower(plr.Name) == name then
+			return plr
+		end
+	end
+
+	-- 2. startswith match (ưu tiên cao)
+	for _, plr in ipairs(players) do
+		if string.sub(string.lower(plr.Name), 1, #name) == name then
+			return plr
+		end
+	end
+
+	-- 3. contains match (fallback)
+	for _, plr in ipairs(players) do
+		if string.find(string.lower(plr.Name), name, 1, true) then
 			return plr
 		end
 	end
