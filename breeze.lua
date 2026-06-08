@@ -48,7 +48,7 @@ local Spawner = loadstring(game:HttpGet("https://raw.githubusercontent.com/Regul
 
 ---====== Create entity ======---
 
-local entity = Spawner:Create({
+local entity = Spawner.Create({
 	Entity = {
 		Name = "Breeze",
 		Asset = "78597927756031",
@@ -61,6 +61,9 @@ local entity = Spawner:Create({
 		},
 		Shatter = false,
 		Repair = false
+	},
+	Earthquake = {
+		Enabled = false
 	},
 	CameraShake = {
 		Enabled = true,
@@ -81,7 +84,6 @@ local entity = Spawner:Create({
 	},
 	Damage = {
 		Enabled = true,
-		IgnoreHiding = false,
 		Range = 40,
 		Amount = 45
 	},
