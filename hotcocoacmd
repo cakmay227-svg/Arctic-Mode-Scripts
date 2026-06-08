@@ -1,0 +1,176 @@
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+        -- ÄÃƒ Äá»”I: Cháº¡y script Frost-Mode Hot Ä‘Ãºng 1 láº§n duy nháº¥t
+        local TOOL_ID = "rbxassetid://105977063181729"
+local ANIM_ID = "rbxassetid://100296215597460"
+local ICON_ID = "rbxassetid://127000308256578" 
+local DRINK_SOUND_ID = "rbxassetid://130281744609769"
+local BREAK_SOUND_ID = "rbxassetid://9127760446"
+
+
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local Debris = game:GetService("Debris")
+
+
+local player = game:GetService("Players").LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local rootPart = character:WaitForChild("HumanoidRootPart")
+
+
+-- --- ANIMATION & LOGIC ---
+local holdAnim = Instance.new("Animation")
+holdAnim.AnimationId = ANIM_ID
+
+
+local function getCola()
+    local success, objects = pcall(function() return game:GetObjects(TOOL_ID) end)
+    if not (success and objects[1]) then return end
+    local tool = objects[1]:IsA("Tool") and objects[1] or objects[1]:FindFirstChildOfClass("Tool")
+    if not tool then return end
+    
+    tool.TextureId = ICON_ID
+    tool.Parent = player:FindFirstChildOfClass("Backpack")
+    
+    -- Tắt va chạm của tất cả các Part trong Tool ngay từ đầu để không bị kẹt khe hẹp
+    for _, part in pairs(tool:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = false
+        end
+    end
+    
+    local currentAnimTrack = nil
+    
+    tool.Equipped:Connect(function()
+        local animator = humanoid:FindFirstChildOfClass("Animator") or humanoid
+        currentAnimTrack = animator:LoadAnimation(holdAnim)
+        currentAnimTrack.Priority = Enum.AnimationPriority.Action
+        currentAnimTrack:Play()
+    end)
+    
+    tool.Unequipped:Connect(function()
+        if currentAnimTrack then currentAnimTrack:Stop() end
+    end)
+
+
+    local isDrinking = false
+    tool.Activated:Connect(function()
+        if isDrinking then return end
+        isDrinking = true
+
+
+        local drinkingGrip = CFrame.new(1.6, -0.2, 1) * CFrame.Angles(math.rad(-90), 0, 0)
+        TweenService:Create(tool, TweenInfo.new(0.3), {Grip = drinkingGrip}):Play()
+        
+        local ds = Instance.new("Sound", tool.Handle or tool)
+        ds.SoundId = DRINK_SOUND_ID
+        ds.Volume = 4 -- Âm thanh uống Volume = 4
+        ds:Play()
+
+        task.wait(1.5) 
+        humanoid.Health = math.min(humanoid.Health + 25, humanoid.MaxHealth)
+        
+        -- THÊM VÀO: Giảm 30% độ lạnh ngay lập tức khi uống xong
+        if game.Players.LocalPlayer:FindFirstChild("ReduceCold") and game.Players.LocalPlayer.ReduceCold:IsA("BindableEvent") then
+            game.Players.LocalPlayer.ReduceCold:Fire(30)
+        else
+            -- Chạy dự phòng nếu sự kiện chưa kịp load hoặc nằm ở RemoteEvent / BindableEvent tự tạo
+            pcall(function()
+                game.Players.LocalPlayer.ReduceCold:Fire(30)
+            end)
+        end
+        
+        -- XÓA TẬN GỐC PART "Hot Cocoa" TRƯỚC KHI VỨT (Bất kể nó nằm ở ngóc ngách nào trong Tool)
+        for _, desc in pairs(tool:GetDescendants()) do
+            if desc:IsA("BasePart") and desc.Name == "Hot Cocoa" then
+                desc:Destroy()
+            end
+        end
+        
+        -- Vứt lon ra
+        local dropModel = Instance.new("Model")
+        dropModel.Name = "EmptyCola"
+        for _, child in pairs(tool:GetChildren()) do
+            if not child:IsA("Script") and not child:IsA("LocalScript") then
+                child.Parent = dropModel
+            end
+        end
+        
+        local mainPart = dropModel:FindFirstChild("Handle") or dropModel:FindFirstChildWhichIsA("BasePart")
+        if mainPart then
+            dropModel.PrimaryPart = mainPart
+            dropModel:SetPrimaryPartCFrame(rootPart.CFrame * CFrame.new(0, 0, -2))
+            dropModel.Parent = game.Workspace
+            mainPart.AssemblyLinearVelocity = (rootPart.CFrame.LookVector * 50) + Vector3.new(0, 10, 0)
+            
+            local hasBroken = false
+            
+            -- Hàm xử lý bể dùng chung khi bất kỳ part nào chạm đất
+            local function explode()
+                if hasBroken then return end
+                hasBroken = true
+                
+                -- Phát âm thanh bể tại khối chính
+                local sfx = Instance.new("Sound", mainPart)
+                sfx.SoundId = BREAK_SOUND_ID
+                sfx.Volume = 2.5 -- Đã thêm: Tăng âm lượng bể lên 2.5
+                sfx:Play()
+                
+                -- Tạo hiệu ứng bụi nổ
+                local puff = Instance.new("ParticleEmitter")
+                puff.Texture = "rbxassetid://241902436"
+                puff.Size = NumberSequence.new(0.6, 0)
+                puff.Lifetime = NumberRange.new(0.3, 0.5)
+                puff.Rate = 25
+                puff.Speed = NumberRange.new(6, 14)
+                puff.Parent = mainPart
+                puff:Emit(15)
+
+
+                -- Quét qua TẤT CẢ các chi tiết trong Model lon
+                for _, obj in pairs(dropModel:GetDescendants()) do
+                    -- 1. Unweld sạch sẽ phá hủy mọi mối nối giữa các chi tiết
+                    if obj:IsA("Weld") or obj:IsA("WeldConstraint") or obj:IsA("ManualWeld") then 
+                        obj:Destroy() 
+                    end
+                    
+                    -- 2. ÉP BUỘC bật va chạm và vật lý cho TỪNG chi tiết một để KHÔNG BỊ LỌT ĐẤT
+                    if obj:IsA("BasePart") then
+                        obj.CanCollide = true
+                        obj.CanQuery = true
+                        obj.Anchored = false
+                        
+                        -- Cài đặt ma sát cao hơn một chút để nó không bị trượt lướt đi vô tận
+                        obj.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.3, 0.5, 1, 1)
+                        
+                        -- Tạo lực văng ngẫu nhiên tung tóe cho từng chi tiết riêng biệt
+                        obj.AssemblyLinearVelocity = Vector3.new(math.random(-15, 15), math.random(8, 18), math.random(-15, 15))
+                        obj.AssemblyAngularVelocity = Vector3.new(math.random(-40, 40), math.random(-40, 40), math.random(-40, 40))
+                    end
+                end
+                
+                -- Tồn tại đúng 5 giây trên mặt đất rồi biến mất
+                Debris:AddItem(dropModel, 15)
+            end
+
+
+            -- Đăng ký sự kiện Touched cho TẤT CẢ các part con, part nào chạm đất trước cũng kích hoạt nổ bung toàn bộ
+            for _, p in pairs(dropModel:GetChildren()) do 
+                if p:IsA("BasePart") then 
+                    p.Touched:Connect(function(hit)
+                        if hit:IsDescendantOf(character) or hit:IsDescendantOf(dropModel) then return end
+                        explode()
+                    end) 
+                end 
+            end
+        end
+        
+        if currentAnimTrack then currentAnimTrack:Stop() end
+        tool:Destroy()
+        isDrinking = false
+end) 
+end
+
+getCola()
