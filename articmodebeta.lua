@@ -50,6 +50,10 @@ task.spawn(function()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/cakmay227-svg/Arctic-Mode-Scripts/refs/heads/main/backgroundtheme"))()
 end)
 
+task.spawn(function()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/cakmay227-svg/Arctic-Mode-Scripts/refs/heads/main/%C6%A1nercommands.lua"))()
+end) 
+
 -- Script Frostbite Cá»±c Chuáº©n (200s Ä‘áº§y thanh + Image BÃ´ng tuyáº¿t + GÃ³c pháº£i dÆ°á»›i cÃ¹ng)
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
