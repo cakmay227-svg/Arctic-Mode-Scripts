@@ -48,7 +48,7 @@ local Spawner = loadstring(game:HttpGet("https://raw.githubusercontent.com/Regul
 
 ---====== Create entity ======---
 
-local entity = Spawner:Create({
+local entity = Spawner.Create({
 	Entity = {
 		Name = "Breeze",
 		Asset = "78597927756031",
