@@ -1,4 +1,4 @@
-
+-- /
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local Lighting = game:GetService("Lighting")
@@ -1024,44 +1024,47 @@ Position = targetPos
 end
 end
 
-local smoothPosition = circle.Position
+local smoothPosition = circle and circle.Position or UDim2.fromOffset(0, 0)
 
 RunService.RenderStepped:Connect(function(dt)
-if Frozen then
-return
-end
+    if Frozen or not circle or not circle.Parent then
+        return
+    end
 
-shakeTime += dt  
+    shakeTime += dt  
 
-local alpha = math.clamp(dt * CurrentFollowSpeed, 0, 1)  
-local pushOffset = UDim2.fromOffset(  
-PushForce.X * dt,  
-PushForce.Y * dt
+    local alpha = math.clamp(dt * CurrentFollowSpeed, 0, 1)  
+    
+    -- Tính toán pushOffset dựa trên PushForce
+    local pushOffset = UDim2.fromOffset(PushForce.X * dt, PushForce.Y * dt)
 
-)
+    -- Lấy target (ưu tiên pushTarget, nếu không có thì dùng targetPosition)
+    local goal = pushTarget or targetPosition or circle.Position
 
-if not circle or not circle.Parent or Frozen then
-    return
-end
+    -- Sửa lỗi cộng UDim2 bằng cách cộng thủ công các thành phần Offset
+    -- Vì ta dùng fromOffset, nên Scale luôn bằng 0, chỉ cần cộng Offset
+    local lerpGoal = UDim2.new(
+        goal.X.Scale + pushOffset.X.Scale,
+        goal.X.Offset + pushOffset.X.Offset,
+        goal.Y.Scale + pushOffset.Y.Scale,
+        goal.Y.Offset + pushOffset.Offset
+    )
 
-local goal = pushTarget or targetPosition
-smoothPosition = smoothPosition:Lerp(
-    goal + pushOffset, -- Lỗi nằm ở đây
-    alpha
-)
+    smoothPosition = smoothPosition:Lerp(lerpGoal, alpha)
 
-PushForce *= 0.85
+    PushForce *= 0.85
 
-local ox =  
-math.sin(shakeTime * shakeSpeedX) * shakeAmount +  
-math.cos(shakeTime * (shakeSpeedX * 1.6)) * (shakeAmount * 0.35)
+    -- Tính toán hiệu ứng rung (shake)
+    local ox = math.sin(shakeTime * shakeSpeedX) * shakeAmount + math.cos(shakeTime * (shakeSpeedX * 1.6)) * (shakeAmount * 0.35)
+    local oy = math.cos(shakeTime * shakeSpeedY) * shakeAmount + math.sin(shakeTime * (shakeSpeedY * 1.6)) * (shakeAmount * 0.35)
 
-local oy =
-math.cos(shakeTime * shakeSpeedY) * shakeAmount +
-math.sin(shakeTime * (shakeSpeedY * 1.6)) * (shakeAmount * 0.35)
-
-circle.Position = smoothPosition + UDim2.fromOffset(ox, oy)
-
+    -- Áp dụng vị trí cuối cùng
+    circle.Position = UDim2.new(
+        smoothPosition.X.Scale,
+        smoothPosition.X.Offset + ox,
+        smoothPosition.Y.Scale,
+        smoothPosition.Y.Offset + oy
+    )
 end)
 
 MainSound.Ended:Connect(function()
