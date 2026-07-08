@@ -1,4 +1,4 @@
-
+-- b
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local Lighting = game:GetService("Lighting")
@@ -1040,18 +1040,10 @@ PushForce.Y * dt
 
 )
 
-local function AddUDim2(u1, u2)
-return UDim2.new(
-u1.X.Scale + u2.X.Scale, u1.X.Offset + u2.X.Offset,
-u1.Y.Scale + u2.Y.Scale, u1.Y.Offset + u2.Y.Offset
-)
-end
-
--- Sau đó áp dụng vào logic:
-local goal = pushTarget or targetPosition
+local goal = targetPosition
 smoothPosition = smoothPosition:Lerp(
-AddUDim2(goal, pushOffset),
-alpha
+    goal + pushOffset, -- Lỗi nằm ở đây
+    alpha
 )
 
 PushForce *= 0.85
