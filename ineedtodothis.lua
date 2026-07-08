@@ -1040,10 +1040,18 @@ PushForce.Y * dt
 
 )
 
-local goal = targetPosition
+local function AddUDim2(u1, u2)
+return UDim2.new(
+u1.X.Scale + u2.X.Scale, u1.X.Offset + u2.X.Offset,
+u1.Y.Scale + u2.Y.Scale, u1.Y.Offset + u2.Y.Offset
+)
+end
+
+-- Sau đó áp dụng vào logic:
+local goal = pushTarget or targetPosition
 smoothPosition = smoothPosition:Lerp(
-    goal + pushOffset, -- Lỗi nằm ở đây
-    alpha
+AddUDim2(goal, pushOffset),
+alpha
 )
 
 PushForce *= 0.85
@@ -1140,254 +1148,104 @@ end
 
 end)
 
+local function DoPush()
+repeat
+	task.wait()
+until circle and circle.Parent
+
+local parent = circle.Parent
+local parentSize = parent.AbsoluteSize
+local circleSize = circle.AbsoluteSize
+
+local Extra = 100  
+
+local minX = -circleSize.X/2 - Extra  
+local maxX = parentSize.X - circleSize.X/2 + Extra  
+
+local minY = -circleSize.Y/2 - Extra  
+local maxY = parentSize.Y - circleSize.Y/2 + Extra  
+
+local randomX, randomY  
+
+local directions = {1,2,3,4}  
+
+if lastDirection then  
+	table.remove(directions, table.find(directions, lastDirection))  
+end  
+
+local dir = directions[math.random(#directions)]  
+lastDirection = dir  
+
+if dir == 1 then  
+	randomX = minX  
+	randomY = math.random(minY, maxY)  
+
+elseif dir == 2 then  
+	randomX = maxX  
+	randomY = math.random(minY, maxY)  
+
+elseif dir == 3 then  
+	randomX = math.random(minX, maxX)  
+	randomY = minY  
+
+else  
+	randomX = math.random(minX, maxX)  
+	randomY = maxY  
+end  
+
+MoveMiddle()  
+
+IsBeingPushed = true  
+CurrentFollowSpeed = PushFollowSpeed  
+
+local current = Vector2.new(  
+	circle.Position.X.Offset,  
+	circle.Position.Y.Offset  
+)  
+
+local target = Vector2.new(randomX, randomY)  
+local direction = (target - current).Unit  
+
+PushForce = direction * 7000  
+pushTarget = UDim2.fromOffset(randomX, randomY)  
+
+task.delay(0.15,function()  
+	targetPosition = pushTarget  
+	pushTarget = nil  
+	IsBeingPushed = false  
+	CurrentFollowSpeed = PlayerFollowSpeed  
+end)  
+
+PlayRandomPushSound()  
+PlayShockWave()  
+  
+task.spawn(function()  
+for i = 1,20 do  
+    local power = 1 - i/20  
+
+    workspace.CurrentCamera.CFrame *= CFrame.Angles(  
+        math.rad(math.random(-10,10) * power),  
+        math.rad(math.random(-10,10) * power),  
+        0  
+    )  
+
+    task.wait(0.05)  
+end
+
+end)
+end
+
 task.spawn(function()
 while not Frozen do
 task.wait(math.random(1.7, 2))
 
 if math.random(100) <= 40 then  
-local parent = circle.Parent
-local parentSize = parent.AbsoluteSize
-local circleSize = circle.AbsoluteSize
-
-local Extra = 100  
-
-local minX = -circleSize.X/2 - Extra  
-local maxX = parentSize.X - circleSize.X/2 + Extra  
-
-local minY = -circleSize.Y/2 - Extra  
-local maxY = parentSize.Y - circleSize.Y/2 + Extra  
-
-local randomX, randomY  
-
-local directions = {1,2,3,4}  
-
-if lastDirection then  
-	table.remove(directions, table.find(directions, lastDirection))  
-end  
-
-local dir = directions[math.random(#directions)]  
-lastDirection = dir  
-
-if dir == 1 then  
-	randomX = minX  
-	randomY = math.random(minY, maxY)  
-
-elseif dir == 2 then  
-	randomX = maxX  
-	randomY = math.random(minY, maxY)  
-
-elseif dir == 3 then  
-	randomX = math.random(minX, maxX)  
-	randomY = minY  
-
-else  
-	randomX = math.random(minX, maxX)  
-	randomY = maxY  
-end  
-
-MoveMiddle()  
-
-IsBeingPushed = true  
-CurrentFollowSpeed = PushFollowSpeed  
-
-local current = Vector2.new(  
-	circle.Position.X.Offset,  
-	circle.Position.Y.Offset  
-)  
-
-local target = Vector2.new(randomX, randomY)  
-local direction = (target - current).Unit  
-
-PushForce = direction * 7000  
-pushTarget = UDim2.fromOffset(randomX, randomY)  
-
-task.delay(0.15,function()  
-	targetPosition = pushTarget  
-	pushTarget = nil  
-	IsBeingPushed = false  
-	CurrentFollowSpeed = PlayerFollowSpeed  
-end)  
-
-PlayRandomPushSound()  
-PlayShockWave()  
-  
-task.spawn(function()  
-for i = 1,20 do  
-    local power = 1 - i/20  
-
-    workspace.CurrentCamera.CFrame *= CFrame.Angles(  
-        math.rad(math.random(-10,10) * power),  
-        math.rad(math.random(-10,10) * power),  
-        0  
-    )  
-
-    task.wait(0.05)  
-end
-
-end)
+DoPush()  
 task.wait(0.2)  
-local parent = circle.Parent
-local parentSize = parent.AbsoluteSize
-local circleSize = circle.AbsoluteSize
-
-local Extra = 100  
-
-local minX = -circleSize.X/2 - Extra  
-local maxX = parentSize.X - circleSize.X/2 + Extra  
-
-local minY = -circleSize.Y/2 - Extra  
-local maxY = parentSize.Y - circleSize.Y/2 + Extra  
-
-local randomX, randomY  
-
-local directions = {1,2,3,4}  
-
-if lastDirection then  
-	table.remove(directions, table.find(directions, lastDirection))  
-end  
-
-local dir = directions[math.random(#directions)]  
-lastDirection = dir  
-
-if dir == 1 then  
-	randomX = minX  
-	randomY = math.random(minY, maxY)  
-
-elseif dir == 2 then  
-	randomX = maxX  
-	randomY = math.random(minY, maxY)  
-
-elseif dir == 3 then  
-	randomX = math.random(minX, maxX)  
-	randomY = minY  
-
-else  
-	randomX = math.random(minX, maxX)  
-	randomY = maxY  
-end  
-
-MoveMiddle()  
-
-IsBeingPushed = true  
-CurrentFollowSpeed = PushFollowSpeed  
-
-local current = Vector2.new(  
-	circle.Position.X.Offset,  
-	circle.Position.Y.Offset  
-)  
-
-local target = Vector2.new(randomX, randomY)  
-local direction = (target - current).Unit  
-
-PushForce = direction * 7000  
-pushTarget = UDim2.fromOffset(randomX, randomY)  
-
-task.delay(0.15,function()  
-	targetPosition = pushTarget  
-	pushTarget = nil  
-	IsBeingPushed = false  
-	CurrentFollowSpeed = PlayerFollowSpeed  
-end)  
-
-PlayRandomPushSound()  
-PlayShockWave()  
-  
-task.spawn(function()  
-for i = 1,20 do  
-    local power = 1 - i/20  
-
-    workspace.CurrentCamera.CFrame *= CFrame.Angles(  
-        math.rad(math.random(-10,10) * power),  
-        math.rad(math.random(-10,10) * power),  
-        0  
-    )  
-
-    task.wait(0.05)  
-end
-
-end)
+DoPush()
 
 else
-local parent = circle.Parent
-local parentSize = parent.AbsoluteSize
-local circleSize = circle.AbsoluteSize
-
-local Extra = 100  
-
-local minX = -circleSize.X/2 - Extra  
-local maxX = parentSize.X - circleSize.X/2 + Extra  
-
-local minY = -circleSize.Y/2 - Extra  
-local maxY = parentSize.Y - circleSize.Y/2 + Extra  
-
-local randomX, randomY  
-
-local directions = {1,2,3,4}  
-
-if lastDirection then  
-	table.remove(directions, table.find(directions, lastDirection))  
-end  
-
-local dir = directions[math.random(#directions)]  
-lastDirection = dir  
-
-if dir == 1 then  
-	randomX = minX  
-	randomY = math.random(minY, maxY)  
-
-elseif dir == 2 then  
-	randomX = maxX  
-	randomY = math.random(minY, maxY)  
-
-elseif dir == 3 then  
-	randomX = math.random(minX, maxX)  
-	randomY = minY  
-
-else  
-	randomX = math.random(minX, maxX)  
-	randomY = maxY  
-end  
-
-MoveMiddle()  
-
-IsBeingPushed = true  
-CurrentFollowSpeed = PushFollowSpeed  
-
-local current = Vector2.new(  
-	circle.Position.X.Offset,  
-	circle.Position.Y.Offset  
-)  
-
-local target = Vector2.new(randomX, randomY)  
-local direction = (target - current).Unit  
-
-PushForce = direction * 7000  
-pushTarget = UDim2.fromOffset(randomX, randomY)  
-
-task.delay(0.15,function()  
-	targetPosition = pushTarget  
-	pushTarget = nil  
-	IsBeingPushed = false  
-	CurrentFollowSpeed = PlayerFollowSpeed  
-end)  
-
-PlayRandomPushSound()  
-PlayShockWave()  
-  
-task.spawn(function()  
-for i = 1,20 do  
-    local power = 1 - i/20  
-
-    workspace.CurrentCamera.CFrame *= CFrame.Angles(  
-        math.rad(math.random(-10,10) * power),  
-        math.rad(math.random(-10,10) * power),  
-        0  
-    )  
-
-    task.wait(0.05)  
-end
-
-end)
+DoPush()
 end
 
 end
@@ -1401,86 +1259,7 @@ task.wait(4)
 
 -- 30% tỉ lệ bị đẩy  
 	if math.random(100) <= 20 then  
-	local parent = circle.Parent
-local parentSize = parent.AbsoluteSize
-local circleSize = circle.AbsoluteSize
-
-local Extra = 100  
-
-local minX = -circleSize.X/2 - Extra  
-local maxX = parentSize.X - circleSize.X/2 + Extra  
-
-local minY = -circleSize.Y/2 - Extra  
-local maxY = parentSize.Y - circleSize.Y/2 + Extra  
-
-local randomX, randomY  
-
-local directions = {1,2,3,4}  
-
-if lastDirection then  
-	table.remove(directions, table.find(directions, lastDirection))  
-end  
-
-local dir = directions[math.random(#directions)]  
-lastDirection = dir  
-
-if dir == 1 then  
-	randomX = minX  
-	randomY = math.random(minY, maxY)  
-
-elseif dir == 2 then  
-	randomX = maxX  
-	randomY = math.random(minY, maxY)  
-
-elseif dir == 3 then  
-	randomX = math.random(minX, maxX)  
-	randomY = minY  
-
-else  
-	randomX = math.random(minX, maxX)  
-	randomY = maxY  
-end  
-
-MoveMiddle()  
-
-IsBeingPushed = true  
-CurrentFollowSpeed = PushFollowSpeed  
-
-local current = Vector2.new(  
-	circle.Position.X.Offset,  
-	circle.Position.Y.Offset  
-)  
-
-local target = Vector2.new(randomX, randomY)  
-local direction = (target - current).Unit  
-
-PushForce = direction * 7000  
-pushTarget = UDim2.fromOffset(randomX, randomY)  
-
-task.delay(0.15,function()  
-	targetPosition = pushTarget  
-	pushTarget = nil  
-	IsBeingPushed = false  
-	CurrentFollowSpeed = PlayerFollowSpeed  
-end)  
-
-PlayRandomPushSound()  
-PlayShockWave()  
-  
-task.spawn(function()  
-for i = 1,20 do  
-    local power = 1 - i/20  
-
-    workspace.CurrentCamera.CFrame *= CFrame.Angles(  
-        math.rad(math.random(-10,10) * power),  
-        math.rad(math.random(-10,10) * power),  
-        0  
-    )  
-
-    task.wait(0.05)  
-end
-
-end)
+	DoPush()  
 	end  
 end
 
