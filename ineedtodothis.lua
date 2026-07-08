@@ -1,4 +1,4 @@
--- b
+
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local Lighting = game:GetService("Lighting")
@@ -1040,7 +1040,11 @@ PushForce.Y * dt
 
 )
 
-local goal = targetPosition
+if not circle or not circle.Parent or Frozen then
+    return
+end
+
+local goal = pushTarget or targetPosition
 smoothPosition = smoothPosition:Lerp(
     goal + pushOffset, -- Lỗi nằm ở đây
     alpha
