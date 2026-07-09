@@ -1,4 +1,4 @@
--- /
+
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local Lighting = game:GetService("Lighting")
@@ -383,7 +383,9 @@ return
 end
 
 local targetPosition = circle.Position
-local pushTarget = nil
+
+local pushGoal = nil
+local pushTime = 0
 local PlayerFollowSpeed = 50 -- tốc độ khi người chơi điều khiển
 local PushFollowSpeed = 20 -- tốc độ khi Pandemonium đẩy
 local CurrentFollowSpeed = PlayerFollowSpeed
@@ -1024,47 +1026,62 @@ Position = targetPos
 end
 end
 
-local smoothPosition = circle and circle.Position or UDim2.fromOffset(0, 0)
+local smoothPosition = circle.Position
 
 RunService.RenderStepped:Connect(function(dt)
-    if Frozen or not circle or not circle.Parent then
-        return
+	if Frozen then
+		return
+	end
+
+	if not circle or not circle.Parent then
+		return
+	end
+
+	shakeTime += dt
+	
+	if pushTime > 0 then
+    pushTime -= dt
+
+    if pushTime <= 0 then
+        targetPosition = pushGoal
+        pushGoal = nil
+
+        IsBeingPushed = false
+        CurrentFollowSpeed = PlayerFollowSpeed
     end
+end
 
-    shakeTime += dt  
+	local alpha = math.clamp(dt * CurrentFollowSpeed, 0, 1)
 
-    local alpha = math.clamp(dt * CurrentFollowSpeed, 0, 1)  
-    
-    -- Tính toán pushOffset dựa trên PushForce
-    local pushOffset = UDim2.fromOffset(PushForce.X * dt, PushForce.Y * dt)
+	local pushOffset = UDim2.fromOffset(
+		PushForce.X * dt,
+		PushForce.Y * dt
+	)
 
-    -- Lấy target (ưu tiên pushTarget, nếu không có thì dùng targetPosition)
-    local goal = pushTarget or targetPosition or circle.Position
+	local goal = pushGoal or targetPosition
 
-    -- Sửa lỗi cộng UDim2 bằng cách cộng thủ công các thành phần Offset
-    -- Vì ta dùng fromOffset, nên Scale luôn bằng 0, chỉ cần cộng Offset
-    local lerpGoal = UDim2.new(
-        goal.X.Scale + pushOffset.X.Scale,
-        goal.X.Offset + pushOffset.X.Offset,
-        goal.Y.Scale + pushOffset.Y.Scale,
-        goal.Y.Offset + pushOffset.Offset
+if PushForce.Magnitude > 0.01 then
+    goal += UDim2.fromOffset(
+        PushForce.X * dt,
+        PushForce.Y * dt
     )
-
-    smoothPosition = smoothPosition:Lerp(lerpGoal, alpha)
 
     PushForce *= 0.85
+end
 
-    -- Tính toán hiệu ứng rung (shake)
-    local ox = math.sin(shakeTime * shakeSpeedX) * shakeAmount + math.cos(shakeTime * (shakeSpeedX * 1.6)) * (shakeAmount * 0.35)
-    local oy = math.cos(shakeTime * shakeSpeedY) * shakeAmount + math.sin(shakeTime * (shakeSpeedY * 1.6)) * (shakeAmount * 0.35)
+smoothPosition = smoothPosition:Lerp(goal, alpha)
 
-    -- Áp dụng vị trí cuối cùng
-    circle.Position = UDim2.new(
-        smoothPosition.X.Scale,
-        smoothPosition.X.Offset + ox,
-        smoothPosition.Y.Scale,
-        smoothPosition.Y.Offset + oy
-    )
+	PushForce *= 0.85
+
+	local ox =
+		math.sin(shakeTime * shakeSpeedX) * shakeAmount +
+		math.cos(shakeTime * (shakeSpeedX * 1.6)) * (shakeAmount * 0.35)
+
+	local oy =
+		math.cos(shakeTime * shakeSpeedY) * shakeAmount +
+		math.sin(shakeTime * (shakeSpeedY * 1.6)) * (shakeAmount * 0.35)
+
+	circle.Position = smoothPosition + UDim2.fromOffset(ox, oy)
 end)
 
 MainSound.Ended:Connect(function()
@@ -1205,15 +1222,10 @@ local current = Vector2.new(
 local target = Vector2.new(randomX, randomY)  
 local direction = (target - current).Unit  
 
-PushForce = direction * 7000  
-pushTarget = UDim2.fromOffset(randomX, randomY)  
+PushForce = direction * 7000
 
-task.delay(0.15,function()  
-	targetPosition = pushTarget  
-	pushTarget = nil  
-	IsBeingPushed = false  
-	CurrentFollowSpeed = PlayerFollowSpeed  
-end)  
+pushGoal = UDim2.fromOffset(randomX, randomY)
+pushTime = 0.15
 
 PlayRandomPushSound()  
 PlayShockWave()  
